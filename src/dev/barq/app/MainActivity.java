@@ -62,6 +62,11 @@ public final class MainActivity extends Activity {
     private LinearLayout receivedCard;
     private LinearLayout receivedList;
     private LinearLayout hintCard;
+    private LinearLayout progressCard;
+    private TextView progressTitle;
+    private TextView progressDetail;
+    private ProgressBarView progressBar;
+    private long activeTransfer;
     private TextView receivedTitle;
 
     private long visibleUntil;
@@ -86,14 +91,31 @@ public final class MainActivity extends Activity {
     private final IBarqCallback callback = new IBarqCallback.Stub() {
         @Override public void onPeerFound(BarqPeer peer) {}
         @Override public void onPeerLost(String peerId) {}
-        @Override public void onTransferOffered(long id, String peer, String[] names, long bytes) {}
-        @Override public void onTransferProgress(long id, long done, long total) {}
+
+        @Override
+        public void onTransferOffered(long id, String peer, String[] names, long bytes) {
+            main.post(() -> showReceiving(id));
+        }
+
+        @Override
+        public void onTransferProgress(long id, long done, long total) {
+            main.post(() -> updateProgress(id, done, total));
+        }
 
         @Override
         public void onTransferFinished(long transferId, int status) {
-            // Files are in the daemon's private storage at this point. Move them
-            // somewhere the user can actually open them.
-            main.post(() -> collect());
+            main.post(() -> {
+                hideReceiving();
+                if (status < 0) {
+                    // Negative means it ended without files -- cancelled, or failed.
+                    // Saying so beats leaving a bar frozen at the last percentage.
+                    say("Transfer stopped", null);
+                    return;
+                }
+                // Files are in the daemon's private storage at this point. Move them
+                // somewhere the user can actually open them.
+                collect();
+            });
         }
     };
 
@@ -173,6 +195,7 @@ public final class MainActivity extends Activity {
         countdown.setVisibility(View.GONE);
         centre.addView(countdown);
 
+        root.addView(buildProgressCard());
         root.addView(buildReceivedCard());
         root.addView(buildHint());
 
@@ -209,6 +232,94 @@ public final class MainActivity extends Activity {
         receivedCard.addView(where);
 
         return receivedCard;
+    }
+
+    /** Shown while bytes are arriving: what, how far, and a way to stop it. */
+    private View buildProgressCard() {
+        progressCard = new LinearLayout(this);
+        progressCard.setOrientation(LinearLayout.VERTICAL);
+        progressCard.setBackground(Ui.card(this, Ui.SURFACE, Ui.ACCENT_DIM, 20));
+        int p = Ui.dp(this, 18);
+        progressCard.setPadding(p, p, p, p);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = Ui.dp(this, 24);
+        progressCard.setLayoutParams(lp);
+        progressCard.setVisibility(View.GONE);
+
+        progressTitle = Ui.text(this, "Receiving", 15, Ui.TEXT, true);
+        progressCard.addView(progressTitle);
+
+        progressBar = new ProgressBarView(this);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 6));
+        bp.topMargin = Ui.dp(this, 14);
+        progressCard.addView(progressBar, bp);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, Ui.dp(this, 12), 0, 0);
+
+        progressDetail = Ui.text(this, "Starting\u2026", 13, Ui.TEXT_MUTED, false);
+        LinearLayout.LayoutParams dp2 = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        progressDetail.setLayoutParams(dp2);
+        row.addView(progressDetail);
+
+        TextView cancel = Ui.text(this, "Cancel", 13, Ui.ACCENT, true);
+        cancel.setPadding(Ui.dp(this, 16), Ui.dp(this, 8), Ui.dp(this, 16), Ui.dp(this, 8));
+        cancel.setBackground(Ui.card(this, Color.parseColor("#1E2A3D"), Color.TRANSPARENT, 18));
+        cancel.setOnClickListener(v -> cancelActive());
+        row.addView(cancel);
+
+        progressCard.addView(row);
+        return progressCard;
+    }
+
+    private void showReceiving(long id) {
+        activeTransfer = id;
+        progressBar.setFraction(0f);
+        progressTitle.setText("Receiving");
+        progressDetail.setText("Starting\u2026");
+        progressCard.setVisibility(View.VISIBLE);
+        if (hintCard != null) {
+            hintCard.setVisibility(View.GONE);
+        }
+    }
+
+    private void updateProgress(long id, long done, long total) {
+        if (id != activeTransfer) {
+            return;   // a late update from a transfer that is no longer on screen
+        }
+        progressCard.setVisibility(View.VISIBLE);
+        if (total > 0) {
+            progressBar.setFraction((float) done / total);
+            progressDetail.setText(Ui.size(done) + " of " + Ui.size(total)
+                    + "  \u00b7  " + (done * 100 / total) + "%");
+        } else {
+            // No TotalBytes from the peer: report what has arrived rather than a
+            // percentage we cannot compute.
+            progressDetail.setText(Ui.size(done) + " received");
+        }
+    }
+
+    private void hideReceiving() {
+        activeTransfer = 0;
+        progressCard.setVisibility(View.GONE);
+    }
+
+    private void cancelActive() {
+        if (service == null || activeTransfer == 0) {
+            return;
+        }
+        try {
+            service.cancelTransfer(activeTransfer);
+            progressTitle.setText("Cancelling\u2026");
+            progressDetail.setText("Waiting for the sender to stop");
+        } catch (Exception e) {
+            Log.e(TAG, "cancelTransfer failed", e);
+        }
     }
 
     /**
@@ -359,6 +470,13 @@ public final class MainActivity extends Activity {
         statusLine.setTextColor(Ui.TEXT_MUTED);
         statusLine.setText("Not visible");
         countdown.setVisibility(View.GONE);
+    }
+
+    private void say(String title, String sub) {
+        deviceName.setText(title);
+        if (sub != null) {
+            statusLine.setText(sub);
+        }
     }
 
     private void collect() {
