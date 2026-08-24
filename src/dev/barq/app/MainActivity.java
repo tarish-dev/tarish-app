@@ -9,15 +9,18 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.ServiceManager;
 import android.util.Log;
-import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
+import dev.barq.BarqPeer;
 import dev.barq.IBarqCallback;
 import dev.barq.IBarqService;
-import dev.barq.BarqPeer;
+
 
 /**
  * The receive screen.
@@ -32,7 +35,8 @@ import dev.barq.BarqPeer;
  *
  * <p>It also stands in for a consent prompt, which does not exist yet: the daemon
  * accepts any transfer while visible and refuses every transfer while not. Until there
- * is a per-transfer prompt, closing the app is the only "no", so it has to be a real one.
+ * is a per-transfer prompt, closing the app is the only "no", so it has to be a real one
+ * — and the pulse has to be honest about which state we are in.
  */
 public final class MainActivity extends Activity {
 
@@ -40,18 +44,44 @@ public final class MainActivity extends Activity {
     private static final String SERVICE_NAME = "dev.barq.IBarqService/default";
 
     /**
-     * How long a single visible session lasts if the screen is left open.
+     * How long one visible session lasts.
      *
      * The daemon expires visibility on its own timer, so a forgotten app does not leave
-     * the device advertising indefinitely. Ten minutes matches what AirDrop's own
-     * "Everyone for 10 Minutes" setting does, and for the same reason.
+     * the device advertising indefinitely. Ten minutes is what AirDrop's own "Everyone
+     * for 10 Minutes" allows, for the same reason.
      */
     private static final int VISIBLE_SECONDS = 600;
 
     private final Handler main = new Handler(Looper.getMainLooper());
+
     private IBarqService service;
-    private TextView status;
-    private TextView detail;
+    private RadarView radar;
+    private TextView deviceName;
+    private TextView statusLine;
+    private TextView countdown;
+    private LinearLayout receivedCard;
+    private LinearLayout receivedList;
+    private LinearLayout hintCard;
+    private TextView receivedTitle;
+
+    private long visibleUntil;
+
+    /** Ticks the countdown once a second while the screen is up. */
+    private final Runnable tick = new Runnable() {
+        @Override
+        public void run() {
+            long left = (visibleUntil - System.currentTimeMillis()) / 1000;
+            if (left > 0) {
+                countdown.setText(String.format("%d:%02d remaining", left / 60, left % 60));
+                countdown.setVisibility(View.VISIBLE);
+                main.postDelayed(this, 1000);
+            } else {
+                // The daemon owns expiry; the UI just stops claiming otherwise.
+                countdown.setVisibility(View.GONE);
+                showInvisible();
+            }
+        }
+    };
 
     private final IBarqCallback callback = new IBarqCallback.Stub() {
         @Override public void onPeerFound(BarqPeer peer) {}
@@ -67,46 +97,197 @@ public final class MainActivity extends Activity {
         }
     };
 
+    // ------------------------------------------------------------------ ui ---
+
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        // The default ActionBar draws its own "Barq" on top of ours. Removing it is
+        // what makes this read as a sheet rather than a settings page.
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        if (getActionBar() != null) {
+            getActionBar().hide();
+        }
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
         setContentView(buildUi());
         connect();
     }
 
     private ViewGroup buildUi() {
+        ScrollView scroller = new ScrollView(this);
+        scroller.setBackgroundColor(Ui.BG);
+        scroller.setFillViewport(true);
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setGravity(Gravity.CENTER);
-        root.setBackgroundColor(Color.parseColor("#101014"));
-        int pad = dp(24);
-        root.setPadding(pad, pad, pad, pad);
+        int side = Ui.dp(this, 24);
+        root.setPadding(side, Ui.dp(this, 28), side, Ui.dp(this, 32));
 
-        status = new TextView(this);
-        status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
-        status.setTextColor(Color.WHITE);
-        status.setGravity(Gravity.CENTER);
-        root.addView(status);
+        // Draw edge to edge, then inset by the real system bars. Hard-coding a status
+        // bar height would be wrong on a device with a different cutout, and the first
+        // version of this screen had its title hidden underneath the status bar.
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            android.graphics.Insets bars =
+                    insets.getInsets(android.view.WindowInsets.Type.systemBars());
+            v.setPadding(side, bars.top + Ui.dp(this, 20),
+                         side, bars.bottom + Ui.dp(this, 32));
+            return insets;
+        });
 
-        detail = new TextView(this);
-        detail.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        detail.setTextColor(Color.parseColor("#9AA0A6"));
-        detail.setGravity(Gravity.CENTER);
-        detail.setPadding(0, dp(12), 0, 0);
-        root.addView(detail);
+        TextView title = Ui.text(this, "Barq", 30, Ui.TEXT, true);
+        root.addView(title);
 
-        return root;
+        TextView subtitle = Ui.text(this, "Receive files from nearby devices", 14, Ui.TEXT_MUTED, false);
+        subtitle.setPadding(0, Ui.dp(this, 4), 0, 0);
+        root.addView(subtitle);
+
+        // The pulse and the identity it belongs to are one block, centred in whatever
+        // space is left between the header and the bottom card. Stacking everything at
+        // the top left the lower half of the screen empty and made the page look
+        // unfinished rather than calm.
+        LinearLayout centre = new LinearLayout(this);
+        centre.setOrientation(LinearLayout.VERTICAL);
+        centre.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+        root.addView(centre, cp);
+
+        radar = new RadarView(this);
+        centre.addView(radar, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 240)));
+
+        deviceName = Ui.text(this, "", 21, Ui.TEXT, true);
+        deviceName.setGravity(Gravity.CENTER);
+        deviceName.setPadding(0, Ui.dp(this, 22), 0, 0);
+        centre.addView(deviceName);
+
+        statusLine = Ui.text(this, "", 15, Ui.ACCENT, false);
+        statusLine.setGravity(Gravity.CENTER);
+        statusLine.setPadding(0, Ui.dp(this, 6), 0, 0);
+        centre.addView(statusLine);
+
+        countdown = Ui.text(this, "", 13, Ui.TEXT_FAINT, false);
+        countdown.setGravity(Gravity.CENTER);
+        countdown.setPadding(0, Ui.dp(this, 4), 0, 0);
+        countdown.setVisibility(View.GONE);
+        centre.addView(countdown);
+
+        root.addView(buildReceivedCard());
+        root.addView(buildHint());
+
+        // fillViewport plus a weighted child is what lets the middle block centre while
+        // the page still scrolls once the received list grows past one screen.
+        scroller.addView(root, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        return scroller;
     }
 
-    private int dp(int v) {
-        return (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics());
+    private View buildReceivedCard() {
+        receivedCard = new LinearLayout(this);
+        receivedCard.setOrientation(LinearLayout.VERTICAL);
+        receivedCard.setBackground(Ui.card(this, Ui.SURFACE, Ui.SURFACE_EDGE, 20));
+        int p = Ui.dp(this, 18);
+        receivedCard.setPadding(p, p, p, p);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = Ui.dp(this, 32);
+        receivedCard.setLayoutParams(lp);
+        receivedCard.setVisibility(View.GONE);   // nothing to show until something lands
+
+        receivedTitle = Ui.text(this, "Received", 13, Ui.TEXT_MUTED, true);
+        receivedTitle.setLetterSpacing(0.08f);
+        receivedCard.addView(receivedTitle);
+
+        receivedList = new LinearLayout(this);
+        receivedList.setOrientation(LinearLayout.VERTICAL);
+        receivedList.setPadding(0, Ui.dp(this, 10), 0, 0);
+        receivedCard.addView(receivedList);
+
+        TextView where = Ui.text(this, "Saved to Downloads/Barq", 12, Ui.TEXT_FAINT, false);
+        where.setPadding(0, Ui.dp(this, 12), 0, 0);
+        receivedCard.addView(where);
+
+        return receivedCard;
     }
+
+    /**
+     * What to do next.
+     *
+     * Shown until something arrives, then replaced by the received list. Without it the
+     * screen states that it is visible and gives no clue what to do with that.
+     */
+    private View buildHint() {
+        hintCard = new LinearLayout(this);
+        hintCard.setOrientation(LinearLayout.HORIZONTAL);
+        hintCard.setBackground(Ui.card(this, Ui.SURFACE, Ui.SURFACE_EDGE, 18));
+        int p = Ui.dp(this, 16);
+        hintCard.setPadding(p, p, p, p);
+        hintCard.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView dot = Ui.text(this, "\u2318", 16, Ui.ACCENT, true);
+        dot.setGravity(Gravity.CENTER);
+        dot.setBackground(Ui.circle(Color.parseColor("#1E2A3D")));
+        int s2 = Ui.dp(this, 34);
+        hintCard.addView(dot, new LinearLayout.LayoutParams(s2, s2));
+
+        TextView t = Ui.text(this,
+                "On an Apple device, open AirDrop and choose this device",
+                13, Ui.TEXT_MUTED, false);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        tp.leftMargin = Ui.dp(this, 12);
+        t.setLayoutParams(tp);
+        hintCard.addView(t);
+        return hintCard;
+    }
+
+    /** One row: a coloured chip with the file's extension, its name, and its size. */
+    private View fileRow(String name, long bytes) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 7));
+
+        TextView chip = Ui.text(this, extensionOf(name), 10, Ui.BG, true);
+        chip.setGravity(Gravity.CENTER);
+        chip.setBackground(Ui.circle(Ui.ACCENT));
+        int s = Ui.dp(this, 34);
+        row.addView(chip, new LinearLayout.LayoutParams(s, s));
+
+        LinearLayout textCol = new LinearLayout(this);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        tp.leftMargin = Ui.dp(this, 12);
+        textCol.setLayoutParams(tp);
+
+        TextView n = Ui.text(this, name, 14, Ui.TEXT, false);
+        n.setMaxLines(1);
+        n.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        textCol.addView(n);
+
+        if (bytes > 0) {
+            textCol.addView(Ui.text(this, Ui.size(bytes), 12, Ui.TEXT_FAINT, false));
+        }
+        row.addView(textCol);
+        return row;
+    }
+
+    private static String extensionOf(String name) {
+        int dot = name.lastIndexOf('.');
+        String ext = dot > 0 && dot < name.length() - 1 ? name.substring(dot + 1) : "FILE";
+        return ext.length() > 4 ? ext.substring(0, 4).toUpperCase() : ext.toUpperCase();
+    }
+
+    // -------------------------------------------------------------- service ---
 
     private void connect() {
         IBinder binder = ServiceManager.getService(SERVICE_NAME);
         if (binder == null) {
-            say("Barq is not running", "the daemon did not publish " + SERVICE_NAME);
+            deviceName.setText("Barq is not running");
+            statusLine.setTextColor(Ui.TEXT_MUTED);
+            statusLine.setText("The daemon did not publish its service");
             return;
         }
         service = IBarqService.Stub.asInterface(binder);
@@ -120,6 +301,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        deviceName.setText(android.os.Build.MODEL);
         // BLE advertising is what makes an Apple device ask for us at all, so it starts
         // and stops with visibility rather than running from boot.
         startService(new Intent(this, BarqBleService.class));
@@ -131,6 +313,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        main.removeCallbacks(tick);
         setDiscoverable(false);
         stopService(new Intent(this, BarqBleService.class));
     }
@@ -154,26 +337,45 @@ public final class MainActivity extends Activity {
         try {
             service.setDiscoverable(visible, visible ? VISIBLE_SECONDS : 0);
             if (visible) {
-                say("Visible to everyone", "Others can send to this device while this screen is open");
+                radar.setActive(true);
+                statusLine.setTextColor(Ui.ACCENT);
+                statusLine.setText("Visible to everyone nearby");
+                visibleUntil = System.currentTimeMillis() + VISIBLE_SECONDS * 1000L;
+                main.removeCallbacks(tick);
+                main.post(tick);
+            } else {
+                showInvisible();
             }
         } catch (Exception e) {
             Log.e(TAG, "setDiscoverable failed", e);
-            say("Not visible", e.getMessage());
+            radar.setActive(false);
+            statusLine.setTextColor(Ui.TEXT_MUTED);
+            statusLine.setText("Could not reach the Barq service");
         }
+    }
+
+    private void showInvisible() {
+        radar.setActive(false);
+        statusLine.setTextColor(Ui.TEXT_MUTED);
+        statusLine.setText("Not visible");
+        countdown.setVisibility(View.GONE);
     }
 
     private void collect() {
         if (service == null) {
             return;
         }
-        int n = FileCollector.collectAll(this, service);
-        if (n > 0) {
-            say("Received " + n + (n == 1 ? " file" : " files"), "Saved to Downloads/Barq");
+        for (FileCollector.Stored f : FileCollector.collectAll(this, service)) {
+            receivedList.addView(fileRow(f.name, f.bytes));
         }
-    }
-
-    private void say(String title, String sub) {
-        status.setText(title);
-        detail.setText(sub == null ? "" : sub);
+        int n = receivedList.getChildCount();
+        if (n == 0) {
+            return;
+        }
+        receivedTitle.setText(n == 1 ? "RECEIVED 1 FILE" : "RECEIVED " + n + " FILES");
+        receivedCard.setVisibility(View.VISIBLE);
+        if (hintCard != null) {
+            hintCard.setVisibility(View.GONE);
+        }
     }
 }

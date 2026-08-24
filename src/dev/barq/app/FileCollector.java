@@ -38,34 +38,50 @@ final class FileCollector {
 
     private FileCollector() {}
 
+    /** One file that made it to Downloads/Barq, and how big it turned out to be. */
+    static final class Stored {
+        final String name;
+        final long bytes;
+
+        Stored(String name, long bytes) {
+            this.name = name;
+            this.bytes = bytes;
+        }
+    }
+
     /**
      * Collect everything the daemon is holding.
      *
-     * @return how many files were stored where the user can see them
+     * <p>Returns what was actually stored, with the byte count measured during the copy.
+     * The size cannot be read from the daemon's inbox instead: that directory is 0700
+     * nobody and even a system-uid app gets nothing from it, which is why an earlier
+     * version showed every file with no size at all.
      */
-    static int collectAll(Context context, IBarqService service) {
+    static java.util.List<Stored> collectAll(Context context, IBarqService service) {
+        java.util.List<Stored> stored = new java.util.ArrayList<>();
         String[] names;
         try {
             names = service.getReceivedFiles();
         } catch (Exception e) {
             Log.e(TAG, "could not list received files", e);
-            return 0;
+            return stored;
         }
-        int stored = 0;
         for (String name : names) {
-            if (collectOne(context, service, name)) {
-                stored++;
+            long n = collectOne(context, service, name);
+            if (n >= 0) {
+                stored.add(new Stored(name, n));
             }
         }
         return stored;
     }
 
-    private static boolean collectOne(Context context, IBarqService service, String name) {
+    /** @return bytes stored, or -1 if the file could not be stored */
+    private static long collectOne(Context context, IBarqService service, String name) {
         Uri dest = null;
         try (ParcelFileDescriptor pfd = service.openReceivedFile(name)) {
             if (pfd == null) {
                 Log.w(TAG, "daemon returned no descriptor for " + name);
-                return false;
+                return -1;
             }
             ContentResolver resolver = context.getContentResolver();
 
@@ -79,19 +95,21 @@ final class FileCollector {
             dest = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
             if (dest == null) {
                 Log.e(TAG, "MediaStore refused an entry for " + name);
-                return false;
+                return -1;
             }
 
+            long copied = 0;
             try (InputStream in = new FileInputStream(pfd.getFileDescriptor());
                  OutputStream out = resolver.openOutputStream(dest)) {
                 if (out == null) {
                     Log.e(TAG, "no output stream for " + name);
-                    return false;
+                    return -1;
                 }
                 byte[] buf = new byte[64 * 1024];
                 int n;
                 while ((n = in.read(buf)) > 0) {
                     out.write(buf, 0, n);
+                    copied += n;
                 }
             }
 
@@ -102,8 +120,8 @@ final class FileCollector {
             // Only now is it safe to drop the daemon's copy: if anything above failed,
             // the file is still in the inbox and the next attempt can retry it.
             service.deleteReceivedFile(name);
-            Log.i(TAG, "stored " + name + " in " + DEST_DIR);
-            return true;
+            Log.i(TAG, "stored " + name + " (" + copied + " bytes) in " + DEST_DIR);
+            return copied;
 
         } catch (IOException | RuntimeException e) {
             Log.e(TAG, "could not store " + name, e);
@@ -115,10 +133,10 @@ final class FileCollector {
                     // Nothing useful to do; the entry stays pending and hidden.
                 }
             }
-            return false;
+            return -1;
         } catch (Exception e) {
             Log.e(TAG, "binder failure collecting " + name, e);
-            return false;
+            return -1;
         }
     }
 }
