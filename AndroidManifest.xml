@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Barq — the AirDrop-compatible sharing client.
+
+  This manifest deliberately declares NO launcher activity yet. The first thing Barq
+  app does is supply the BLE beacon that makes AirDrop discovery start at all, and
+  that must work with nothing open. The UI lands on top of this later.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="dev.barq.app"
+    android:sharedUserId="android.uid.system">
+
+    <!--
+      Android 12 split the old BLUETOOTH/BLUETOOTH_ADMIN pair into these. They are
+      RUNTIME permissions even for a privileged app, so they are pre-granted in
+      etc/default-permissions-dev.barq.app.xml — being installed is not enough.
+
+      neverForLocation lets us scan without holding a location permission. Barq has no
+      business knowing where the device is, and BLE scanning is otherwise treated as
+      location-capable.
+    -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Privileged, granted through etc/privapp-permissions-dev.barq.app.xml. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED" />
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- BLE advertising is the discovery trigger; without it the device is invisible. -->
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+
+    <application
+        android:label="Barq"
+        android:defaultToDeviceProtectedStorage="true"
+        android:directBootAware="true">
+
+        <service
+            android:name=".BarqBleService"
+            android:exported="false" />
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

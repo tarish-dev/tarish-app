@@ -1,0 +1,44 @@
+// Barq app — built as a privileged system app.
+//
+// privileged + platform certificate is what BLUETOOTH_PRIVILEGED requires, and is the
+// same standing Google gives their own sharing app. Nothing here needs to be an
+// updatable APK, so it ships in system_ext alongside the daemons.
+
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+android_app {
+    name: "BarqApp",
+    srcs: ["src/**/*.java"],
+
+    // platform_apis rather than an SDK level: this is built in-tree with the platform
+    // and uses system API surface.
+    platform_apis: true,
+    certificate: "platform",
+    privileged: true,
+    system_ext_specific: true,
+
+    optimize: {
+        enabled: false,
+    },
+
+    required: [
+        "privapp-permissions-dev.barq.app.xml",
+        "default-permissions-dev.barq.app.xml",
+    ],
+}
+
+prebuilt_etc {
+    name: "privapp-permissions-dev.barq.app.xml",
+    src: "etc/privapp-permissions-dev.barq.app.xml",
+    sub_dir: "permissions",
+    system_ext_specific: true,
+}
+
+prebuilt_etc {
+    name: "default-permissions-dev.barq.app.xml",
+    src: "etc/default-permissions-dev.barq.app.xml",
+    sub_dir: "default-permissions",
+    system_ext_specific: true,
+}

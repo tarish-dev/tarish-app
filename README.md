@@ -6,8 +6,20 @@ settings, Quick Settings tile.
 ## Why this is thin, and stays thin
 
 Everything expensive lives in the daemon: holding the AWDL link, discovery, mDNS,
-and the transfer itself. This app binds `IBarqService` when the user is looking at
+and the transfer itself. The **UI** binds `IBarqService` when the user is looking at
 it and is expected **not to be running the rest of the time**.
+
+**One part of the app is an exception, and has to be.** BLE advertising is what makes
+an Apple device start asking for us at all, and it cannot wait for someone to open
+something — so `BarqBleService` starts at boot and stays. It has no UI, no foreground
+notification, and does nothing but advertise and scan. That is the smallest thing that
+can be resident, and it is resident for the same reason the daemons are: being
+discoverable is not an activity the user should have to perform. See
+[docs/BLE-DISCOVERY.md](docs/BLE-DISCOVERY.md).
+
+BLE lives here rather than in the daemon because `libmosey` is pure AWDL — it links no
+Bluetooth library at all — and because advertising goes through the framework's
+`BluetoothLeAdvertiser`. Google splits it the same way.
 
 That is the entire point of the split. An Android app that stays resident must
 hold a foreground service and therefore a permanent notification; a native daemon

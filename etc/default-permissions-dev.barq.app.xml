@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Runtime permissions pre-granted to Barq at first install.
+
+  BLUETOOTH_ADVERTISE, _SCAN and _CONNECT are runtime permissions on Android 12 and
+  later. Being a privileged system app does NOT grant them, and there is no UI to
+  request them from a service that runs before anything is opened, so they are granted
+  here.
+
+  Note this applies at FIRST INSTALL only. Flashing over an existing userdata keeps the
+  old grant state, so a device that had Barq before this file existed needs the
+  permissions granted by hand or a wipe. That exact trap cost time with Google's
+  sharing app: the app crashed on a missing local-network permission that its own
+  default-permissions file was supposed to provide.
+-->
+<exceptions>
+    <exception package="dev.barq.app">
+        <permission name="android.permission.BLUETOOTH_ADVERTISE" fixed="false"/>
+        <permission name="android.permission.BLUETOOTH_SCAN" fixed="false"/>
+        <permission name="android.permission.BLUETOOTH_CONNECT" fixed="false"/>
+    </exception>
+</exceptions>
