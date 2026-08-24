@@ -12,6 +12,10 @@ android_app {
     name: "BarqApp",
     srcs: ["src/**/*.java"],
 
+    // The IPC contract lives with the daemon, which is the server. The app consumes
+    // those files rather than carrying a copy that can drift.
+    static_libs: ["dev.barq-java"],
+
     // platform_apis rather than an SDK level: this is built in-tree with the platform
     // and uses system API surface.
     platform_apis: true,

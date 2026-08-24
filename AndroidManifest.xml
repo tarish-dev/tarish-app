@@ -2,9 +2,15 @@
 <!--
   Barq — the AirDrop-compatible sharing client.
 
-  This manifest deliberately declares NO launcher activity yet. The first thing Barq
-  app does is supply the BLE beacon that makes AirDrop discovery start at all, and
-  that must work with nothing open. The UI lands on top of this later.
+  Visibility is deliberately tied to the UI. MainActivity turns discovery on in
+  onResume and off in onPause, and BarqBleService is started and stopped with it.
+  Nothing advertises from boot.
+
+  That is a privacy position, not a limitation: a device that announces itself to every
+  AirDrop scanner in range from the moment it powers on is a choice nobody made. It
+  also stands in for the per-transfer consent prompt that does not exist yet: the
+  daemon accepts any transfer while visible and refuses every one while not, so closing
+  the app has to be a real "no".
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="dev.barq.app"
@@ -27,8 +33,6 @@
     <!-- Privileged, granted through etc/privapp-permissions-dev.barq.app.xml. -->
     <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED" />
 
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
     <!-- BLE advertising is the discovery trigger; without it the device is invisible. -->
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
@@ -37,17 +41,19 @@
         android:defaultToDeviceProtectedStorage="true"
         android:directBootAware="true">
 
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="Barq"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".BarqBleService"
             android:exported="false" />
-
-        <receiver
-            android:name=".BootReceiver"
-            android:exported="true"
-            android:directBootAware="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
     </application>
 </manifest>

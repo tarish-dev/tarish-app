@@ -22,11 +22,11 @@ import java.util.List;
 /**
  * Advertises the AirDrop BLE beacon and watches for other peers advertising it.
  *
- * <p><b>Why this is a service and not a screen.</b> Being discoverable must not require
- * anyone to open an app. The daemons ({@code barqd}, {@code barqsharingd}) already run
- * from boot and hold the AWDL session; this completes the picture by supplying the BLE
- * trigger that makes a peer start asking over mDNS in the first place. The user-facing
- * app is a separate concern and can be absent entirely without stopping discovery.
+ * <p><b>Started and stopped by {@link MainActivity}, not by boot.</b> BLE advertising is
+ * what makes an Apple device ask for us at all, so it is the visibility switch: while
+ * this service runs the device can be found, and while it does not it cannot. An earlier
+ * version started at boot and never stopped, which meant the device announced itself to
+ * every scanner in range forever.
  *
  * <p><b>Why BLE lives here rather than in the daemon.</b> {@code barqd} is native and
  * holds {@code NET_ADMIN}/{@code NET_RAW} for the Wi-Fi side. BLE advertising goes
@@ -142,9 +142,10 @@ public final class BarqBleService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // Sticky: if the process is killed for memory, discovery should come back
-        // without anyone opening anything.
-        return START_STICKY;
+        // NOT sticky. Visibility belongs to the user through MainActivity, so a service
+        // that resurrected itself after being killed would advertise with nothing open
+        // -- exactly the behaviour this design exists to prevent.
+        return START_NOT_STICKY;
     }
 
     @Override
