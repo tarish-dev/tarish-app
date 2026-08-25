@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Themed-icon layer. Android tints this itself, so it must be a single flat colour and
+  must carry the silhouette alone — the two-tone split from the colour version would
+  come out as one solid shape and lose the gap that makes the mark.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF" android:pathData="M74,18 L30,53 L61,53 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M34,90 L78,55 L47,55 Z" />
+</vector>

@@ -38,6 +38,8 @@
 
     <application
         android:label="Barq"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:defaultToDeviceProtectedStorage="true"
         android:directBootAware="true">
 

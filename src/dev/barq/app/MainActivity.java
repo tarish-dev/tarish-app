@@ -21,6 +21,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import dev.barq.BarqPeer;
+import dev.barq.BarqStatus;
 import dev.barq.IBarqCallback;
 import dev.barq.IBarqService;
 
@@ -411,8 +412,12 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         col.addView(stateLine);
         identity.addView(col);
         // Re-state what is actually true, rather than a default that may already be wrong.
-        setIdentityState(discoverable ? "visible to everyone nearby" : "not visible",
-                         discoverable);
+        if (!transportUp()) {
+            setIdentityState("AirDrop radio unavailable \u2014 see Send screen", false);
+        } else {
+            setIdentityState(discoverable ? "visible to everyone nearby" : "not visible",
+                             discoverable);
+        }
         return identity;
     }
 
@@ -776,6 +781,27 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             // An older daemon does not have this method. That is survivable: it
             // simply keeps the radio up, which is what it did before this existed.
             Log.w(TAG, "setActive unavailable", e);
+        }
+    }
+
+    /**
+     * Is the AWDL transport actually up?
+     *
+     * Worth asking separately from anything else, because when it is down every other
+     * screen is truthful and useless: no peers, not discoverable, no error. The daemon
+     * refuses to bring the radio up without a regulatory country, and a phone that has
+     * never joined a Wi-Fi network and has no SIM has none -- which presents as the app
+     * simply not working, with nothing anywhere saying why.
+     */
+    private boolean transportUp() {
+        if (service == null) {
+            return false;
+        }
+        try {
+            BarqStatus st = service.getStatus();
+            return st != null && st.linkUp;
+        } catch (Exception e) {
+            return false;
         }
     }
 

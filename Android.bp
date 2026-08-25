@@ -11,6 +11,7 @@ package {
 android_app {
     name: "BarqApp",
     srcs: ["src/**/*.java"],
+    resource_dirs: ["res"],
 
     // The IPC contract lives with the daemon, which is the server. The app consumes
     // those files rather than carrying a copy that can drift.

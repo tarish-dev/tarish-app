@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Barq mark: a bolt built from two opposed wedges with a gap through the middle.
+  It is a bolt (barq is Arabic for lightning) and it is two devices handing something
+  across, which is the whole app. The gap is the point — a solid bolt is a weather
+  icon, a split one is a transfer.
+  Geometry is deliberately sharp and asymmetric. Rounded corners and a centred glyph
+  are what every share app already looks like.
+  Drawn inside the 72dp adaptive safe zone (18..90 of the 108 viewport), so no launcher
+  mask can clip a tip off.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- upper wedge: falls to the left, the leading half of the stroke -->
+    <path
+        android:fillColor="#FFC531"
+        android:pathData="M74,18 L30,53 L61,53 Z" />
+
+    <!-- lower wedge: rises to the right, offset so the two read as one stroke -->
+    <path
+        android:fillColor="#E8A317"
+        android:pathData="M34,90 L78,55 L47,55 Z" />
+</vector>
