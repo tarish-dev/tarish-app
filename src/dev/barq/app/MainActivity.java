@@ -53,6 +53,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private static final long RENEW_AFTER_MS = (VISIBLE_SECONDS - 120) * 1000L;
     private static final int REQ_PICK = 1;
 
+    // Outcomes from IBarqCallback.onTransferFinished.
+    private static final int STATUS_FAILED = -1;
+    private static final int STATUS_DECLINED = -2;
+
     private final Handler main = new Handler(Looper.getMainLooper());
     private final List<Uri> shared = new ArrayList<>();
 
@@ -78,9 +82,16 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * been discarded, so tapping a device did nothing at all -- intermittently, which
      * made it look like the send was failing rather than never starting.
      */
-    private String peerSignature = "";
+    private String peerSignature;
     /** When visibility was last asserted, so it can be renewed before the daemon expires it. */
     private long visibleSince;
+    /** The offer waiting for an answer, or null. Set by onTransferOffered. */
+    private long offerId;
+    private String offerFrom;
+    private String[] offerNames = new String[0];
+
+    private String outcomeTitle;
+    private String outcomeDetail;
 
     // Receive-mode views, rebuilt whenever the mode changes.
     private LinearLayout identity;
@@ -133,8 +144,19 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         @Override
         public void onTransferOffered(long id, String peer, String[] names, long bytes) {
             main.post(() -> {
-                activeTransfer = id;
-                showProgress("Starting…", 0f);
+                // Do NOT start progress here. Nothing is being received yet -- the
+                // daemon is holding the connection open waiting for this answer, and
+                // showing a progress bar for a transfer nobody has agreed to was how
+                // the old auto-accept looked from the outside.
+                offerId = id;
+                offerFrom = (peer == null || peer.isEmpty()) ? "A nearby device" : peer;
+                offerNames = names == null ? new String[0] : names;
+                if (sendMode) {
+                    // An offer arrives on the receive side by definition. Switch, or
+                    // the prompt would be built into a screen nobody is looking at.
+                    sendMode = false;
+                }
+                render();
             });
         }
 
@@ -154,13 +176,19 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         public void onTransferFinished(long id, int status) {
             main.post(() -> {
                 activeTransfer = 0;
+                offerId = 0;   // whatever happened, the question is answered
                 hideProgress();
-                if (status < 0) {
-                    setIdentityState("transfer stopped", false);
+                if (status == STATUS_DECLINED) {
+                    // Someone pressed Decline. That is an answer, not a fault, and
+                    // saying "could not send" would invite a retry that gets refused
+                    // again.
+                    showOutcome("Declined", "the other device turned it down");
+                } else if (status == STATUS_FAILED) {
+                    showOutcome("Could not send", "the transfer did not complete");
                 } else if (!sendMode) {
                     collect();
                 } else {
-                    setIdentityState("sent", false);
+                    showOutcome("Sent", describeShared() + " delivered");
                 }
             });
         }
@@ -268,6 +296,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     private void buildReceive() {
+        if (offerId != 0) {
+            content.addView(Ui.sectionLabel(this, "Incoming"));
+            content.addView(buildOfferCard());
+        }
         content.addView(Ui.sectionLabel(this, "This device"));
         content.addView(buildIdentityStrip());
         content.addView(buildProgressCard());
@@ -278,6 +310,76 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         inbox.setPadding(0, 0, 0, 0);
         content.addView(inbox);
         renderInbox();
+    }
+
+    /**
+     * "X wants to send you Y" — with the two answers, and no default.
+     *
+     * Deliberately not a system dialog: this is the one screen in Barq where a person
+     * is being asked to trust another device, and it should look like the rest of the
+     * app rather than like something the platform threw up. It is also the only view
+     * that can be sure it is on top, because receiving requires the app to be open.
+     */
+    private LinearLayout buildOfferCard() {
+        LinearLayout card = Ui.cardBox(this);
+
+        card.addView(Ui.text(this, offerFrom + " wants to send", 17, Ui.TEXT, true));
+
+        String what;
+        if (offerNames.length == 0) {
+            what = "a file";
+        } else if (offerNames.length == 1) {
+            what = offerNames[0];
+        } else {
+            what = offerNames.length + " files — " + String.join(", ", offerNames);
+        }
+        TextView detail = Ui.text(this, what, 13, Ui.TEXT_FAINT, false);
+        detail.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 14));
+        card.addView(detail);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+
+        TextView decline = Ui.text(this, "DECLINE", 13, Ui.TEXT, true);
+        decline.setGravity(Gravity.CENTER);
+        decline.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
+        decline.setBackground(Ui.card(this, Ui.SURFACE, Ui.RULE, 10));
+        decline.setOnClickListener(v -> answerOffer(false));
+        row.addView(decline, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        View gap = new View(this);
+        row.addView(gap, new LinearLayout.LayoutParams(Ui.dp(this, 10), 1));
+
+        TextView accept = Ui.text(this, "ACCEPT", 13, Ui.BG, true);
+        accept.setGravity(Gravity.CENTER);
+        accept.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
+        accept.setBackground(Ui.card(this, Ui.ACCENT, Ui.ACCENT, 10));
+        accept.setOnClickListener(v -> answerOffer(true));
+        row.addView(accept, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        card.addView(row);
+        return card;
+    }
+
+    private void answerOffer(boolean accept) {
+        long id = offerId;
+        offerId = 0;
+        if (service == null) {
+            render();
+            return;
+        }
+        try {
+            service.respondToOffer(id, accept);
+        } catch (Exception e) {
+            Log.w(TAG, "could not answer offer " + id, e);
+        }
+        if (accept) {
+            activeTransfer = id;
+            render();
+            showProgress("Receiving…", 0f);
+        } else {
+            render();
+        }
     }
 
     /**
@@ -421,12 +523,14 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         LinearLayout.LayoutParams lp =
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         col.setLayoutParams(lp);
-        col.addView(Ui.text(this, shared.isEmpty() ? "No files chosen" : describeShared(),
-                            15, Ui.TEXT, true));
-        col.addView(Ui.text(this,
-                shared.isEmpty() ? "choose files, or share to barq from any app"
-                                 : firstNames(),
-                12, Ui.TEXT_FAINT, false));
+        String heading = outcomeTitle != null ? outcomeTitle
+                : shared.isEmpty() ? "No files chosen" : describeShared();
+        String sub = outcomeDetail != null ? outcomeDetail
+                : shared.isEmpty() ? "choose files, or share to barq from any app"
+                                   : firstNames();
+        col.addView(Ui.text(this, heading, 15,
+                            outcomeTitle != null ? Ui.ACCENT : Ui.TEXT, true));
+        col.addView(Ui.text(this, sub, 12, Ui.TEXT_FAINT, false));
         files.addView(col);
 
         // Barq should be usable on its own, not only as a share target. Without this
@@ -443,11 +547,21 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
 
         content.addView(buildProgressCard());
 
-        content.addView(Ui.sectionLabel(this, "Send to nearby devices"));
+        // Choosing again clears a previous outcome, so the row stops reporting a
+        // transfer the user has moved on from.
+        content.addView(Ui.sectionLabel(this,
+                shared.isEmpty() ? "Nearby devices" : "Send to nearby devices"));
         peerBox = Ui.cardBox(this);
         peerBox.setMinimumHeight(Ui.dp(this, 150));
-        peerSignature = "";   // fresh views, so the next refresh must populate them
+        peerSignature = null;   // fresh views, so the next refresh MUST populate them
         content.addView(peerBox);
+        if (shared.isEmpty()) {
+            TextView hint = Ui.text(this, "Choose files to enable sending",
+                                    12, Ui.TEXT_FAINT, false);
+            hint.setGravity(Gravity.CENTER);
+            hint.setPadding(0, Ui.dp(this, 10), 0, 0);
+            content.addView(hint);
+        }
         refreshPeers();
     }
 
@@ -488,6 +602,23 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         progressCard.setVisibility(View.VISIBLE);
         progressBar.setFraction(fraction);
         progressLabel.setText(label);
+    }
+
+    /**
+     * Report how a transfer ended, where the user is already looking.
+     *
+     * In send mode that is the files row, which is the only part of the screen that was
+     * about this transfer. Previously an outcome went to the identity strip, which in
+     * send mode is not even visible -- so a decline produced no feedback at all.
+     */
+    private void showOutcome(String title, String detail) {
+        if (sendMode) {
+            outcomeTitle = title;
+            outcomeDetail = detail;
+            render();
+        } else {
+            setIdentityState(title.toLowerCase(), false);
+        }
     }
 
     private void hideProgress() {
@@ -552,6 +683,14 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             service = null;
             return false;
         }
+        // Re-assert the foreground after a reconnect. A daemon that has just
+        // restarted has no idea we are on screen, and without this nothing would
+        // tell it until the next onResume -- which, if the user never leaves the
+        // app, may not come at all.
+        //
+        // Outside the try above on purpose: setActive has its own handling for an
+        // older daemon, and must not be able to null out a binding that works.
+        setActive(true);
         return true;
     }
 
@@ -587,6 +726,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             connect();
         }
         startService(new Intent(this, BarqBleService.class));
+        setActive(true);
         setDiscoverable(!sendMode, "onResume");
         main.post(poll);
         if (!sendMode) {
@@ -599,6 +739,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         super.onPause();
         main.removeCallbacks(poll);
         setDiscoverable(false, "onPause");
+        // The radio, unlike visibility, is released on leaving the foreground. The
+        // daemon holds it for another half-minute so a file picker or a glance at
+        // another app does not tear the link down and back up.
+        setActive(false);
         stopService(new Intent(this, BarqBleService.class));
     }
 
@@ -612,6 +756,27 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             }
         }
         super.onDestroy();
+    }
+
+    /**
+     * Tell the daemon whether we are in the foreground, which is what governs the
+     * AWDL radio.
+     *
+     * Separate from setDiscoverable because the two genuinely differ: in Send mode
+     * we are NOT discoverable and very much need the radio. Gating the link on
+     * visibility would take it down under every outgoing transfer.
+     */
+    private void setActive(boolean active) {
+        if (service == null) {
+            return;
+        }
+        try {
+            service.setActive(active);
+        } catch (Exception e) {
+            // An older daemon does not have this method. That is survivable: it
+            // simply keeps the radio up, which is what it did before this existed.
+            Log.w(TAG, "setActive unavailable", e);
+        }
     }
 
     private void setDiscoverable(boolean visible, String why) {
@@ -708,6 +873,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         if (request != REQ_PICK || result != RESULT_OK || data == null) {
             return;
         }
+        outcomeTitle = null;
+        outcomeDetail = null;
         shared.clear();
         if (data.getClipData() != null) {
             android.content.ClipData clip = data.getClipData();
@@ -769,7 +936,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
         peers = named.toArray(new BarqPeer[0]);
 
-        StringBuilder sig = new StringBuilder();
+        // Everything the tiles are drawn FROM belongs in the signature, not just the
+        // peers -- the gate below reads `shared`, so a selection change with an
+        // unchanged peer list must still redraw.
+        StringBuilder sig = new StringBuilder(shared.isEmpty() ? "gated\n" : "live\n");
         for (BarqPeer p : peers) {
             sig.append(p.id).append('|').append(p.name).append('\n');
         }
@@ -798,7 +968,16 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             }
             BarqPeer p = peers[i];
             LinearLayout tile = Ui.deviceTile(this, glyphFor(p), p.name, kindOf(p));
-            tile.setOnClickListener(v -> sendTo(p));
+            if (shared.isEmpty()) {
+                // Dimmed and inert. A tile that looks tappable and silently does
+                // nothing is worse than one that plainly cannot be used -- tapping it
+                // and getting no response reads as the app being broken.
+                tile.setAlpha(0.35f);
+                tile.setOnClickListener(v -> nudgeChooseFiles());
+            } else {
+                tile.setAlpha(1f);
+                tile.setOnClickListener(v -> sendTo(p));
+            }
             row.addView(tile, new LinearLayout.LayoutParams(
                     0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         }
@@ -827,6 +1006,18 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         } catch (Exception e) {
             Log.e(TAG, "cancelTransfer failed", e);
         }
+    }
+
+    /**
+     * Say why a device cannot be picked yet, and offer the way out.
+     *
+     * Reached by tapping a dimmed tile. The dimming states it; this explains it for
+     * anyone who tries anyway.
+     */
+    private void nudgeChooseFiles() {
+        outcomeTitle = "Choose files first";
+        outcomeDetail = "pick something to send, then tap a device";
+        render();
     }
 
     private void sendTo(BarqPeer peer) {

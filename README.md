@@ -29,11 +29,12 @@ stay alive, it belongs in the daemon instead — that is the design rule.
 ## Scope
 
 **In:**
-- share-sheet target (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`)
+- share-sheet target (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`), and an in-app picker
 - pick a peer, show transfer progress
 - prompt on an incoming offer, accept or reject
-- Quick Settings tile for discoverability
-- settings: device name, visibility mode and duration
+- an inbox, so a received file does not arrive and vanish
+- Quick Settings tile for discoverability *(not written)*
+- settings: device name, visibility mode and duration *(not written)*
 
 **Out — these belong to the daemon:**
 - advertising and discovery
@@ -73,5 +74,40 @@ process that may be slow, frozen, or about to be killed.
 
 ## Status
 
-**Not started.** This repo currently holds the plan and the contract it will
-build against. The daemon is working; the app is not written yet.
+**Working**, on a GrapheneOS build with no Google applications, under SELinux
+enforcing: files go both ways with a Mac, peers show real device names, and an
+incoming transfer has to be accepted by a person.
+
+| | state |
+|---|---|
+| share-sheet target (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`) | done |
+| in-app file picker | done |
+| pick a nearby device and send | done |
+| accept / decline prompt on an incoming offer | done |
+| inbox — received files persist until saved, not dumped and forgotten | done |
+| live discovery while the send screen is open | done |
+| survives a daemon restart (`linkToDeath` + rebind) | done |
+| Quick Settings tile for discoverability | not written |
+| settings: device name, visibility mode and duration | not written |
+
+### Two rules the UI encodes
+
+**A device cannot be picked with nothing to send.** Tiles are dimmed and inert
+until files are chosen, and tapping one says why. A tile that looks tappable and
+silently does nothing reads as a broken app.
+
+**A decline is not a failure.** The daemon reports it as its own status (`-2`,
+distinct from `-1`), and the app says "Declined — the other device turned it
+down" rather than "could not send", which would invite a retry that gets refused
+again.
+
+### Visibility follows the foreground
+
+`onResume` makes the device discoverable and tells the daemon a client is active;
+`onPause` withdraws both. The daemon renews visibility on its own timer while the
+receive screen is up, so it cannot silently lapse under a UI that still claims to
+be visible.
+
+`setActive` is deliberately separate from `setDiscoverable`: it governs the AWDL
+radio, and a client that is *sending* is not discoverable while needing the link
+more than ever.
