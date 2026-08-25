@@ -49,6 +49,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     /** One visible session. The daemon expires it on its own timer regardless. */
     private static final int VISIBLE_SECONDS = 600;
     private static final long POLL_MS = 1500;
+    /** Renew well inside the daemon's expiry, so there is no window where it has lapsed. */
+    private static final long RENEW_AFTER_MS = (VISIBLE_SECONDS - 120) * 1000L;
+    private static final int REQ_PICK = 1;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final List<Uri> shared = new ArrayList<>();
@@ -58,6 +61,26 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private LinearLayout content;
     private boolean sendMode;
     private long activeTransfer;
+    /**
+     * What we last asked the daemon for.
+     *
+     * render() rebuilds every view, so the strip has to be able to re-state the current
+     * condition rather than starting from a hardcoded default. Without this, switching
+     * to Send and back showed "not visible" while the device was still advertising --
+     * the label was a fresh view that nobody had told.
+     */
+    private boolean discoverable;
+    /**
+     * What the peer list currently shows.
+     *
+     * The list used to be torn down and rebuilt on every poll, twice a second. A tap
+     * that landed between removeAllViews() and the re-add hit a view that had already
+     * been discarded, so tapping a device did nothing at all -- intermittently, which
+     * made it look like the send was failing rather than never starting.
+     */
+    private String peerSignature = "";
+    /** When visibility was last asserted, so it can be renewed before the daemon expires it. */
+    private long visibleSince;
 
     // Receive-mode views, rebuilt whenever the mode changes.
     private LinearLayout identity;
@@ -75,8 +98,29 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private final Runnable poll = new Runnable() {
         @Override
         public void run() {
+            // Keep trying to get back to the daemon. This is the only recovery path
+            // that works for a service which restarts: the proxy is dead for good, and
+            // a client that does not rebind sits there looking alive and doing nothing
+            // until someone force-stops it.
+            if (service == null) {
+                if (connect()) {
+                    Log.i(TAG, "reconnected to the daemon");
+                    setDiscoverable(!sendMode, "reconnect");
+                    render();
+                }
+                main.postDelayed(this, POLL_MS);
+                return;
+            }
             if (sendMode) {
                 refreshPeers();
+            } else if (discoverable
+                    && System.currentTimeMillis() - visibleSince > RENEW_AFTER_MS) {
+                // The daemon expires visibility on its own timer and has no way to tell
+                // us. Renewing while this screen is up means the state it shows stays
+                // true -- otherwise the phone goes quiet after ten minutes while the
+                // screen still claims to be visible, which is a lie in the direction
+                // that matters.
+                setDiscoverable(true, "renew");
             }
             main.postDelayed(this, POLL_MS);
         }
@@ -159,7 +203,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         collectShared(intent);
         if (!shared.isEmpty()) {
             sendMode = true;
-            setDiscoverable(false);
+            setDiscoverable(false, "onNewIntent");
             render();
         }
     }
@@ -261,9 +305,12 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         deviceLine = Ui.text(this, android.os.Build.MODEL.toUpperCase(), 15, Ui.TEXT, true);
         deviceLine.setLetterSpacing(0.04f);
         col.addView(deviceLine);
-        stateLine = Ui.text(this, "not visible", 13, Ui.TEXT_MUTED, false);
+        stateLine = Ui.text(this, "", 13, Ui.TEXT_MUTED, false);
         col.addView(stateLine);
         identity.addView(col);
+        // Re-state what is actually true, rather than a default that may already be wrong.
+        setIdentityState(discoverable ? "visible to everyone nearby" : "not visible",
+                         discoverable);
         return identity;
     }
 
@@ -364,21 +411,34 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     private void buildSend() {
-        content.addView(Ui.sectionLabel(this, "Selected files"));
+        content.addView(Ui.sectionLabel(this, "Files"));
         LinearLayout files = Ui.cardBox(this);
         files.setOrientation(LinearLayout.HORIZONTAL);
         files.setGravity(Gravity.CENTER_VERTICAL);
-        files.addView(Ui.glyphInCircle(this, Glyph.Kind.CHECK, Ui.ACCENT, Ui.SURFACE_SUNK, 42));
+
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams lp =
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        lp.leftMargin = Ui.dp(this, 16);
         col.setLayoutParams(lp);
-        col.addView(Ui.text(this, shared.isEmpty() ? "Nothing selected" : "Selected files",
-                            16, Ui.TEXT, true));
-        col.addView(Ui.text(this, describeShared(), 14, Ui.TEXT_MUTED, false));
+        col.addView(Ui.text(this, shared.isEmpty() ? "No files chosen" : describeShared(),
+                            15, Ui.TEXT, true));
+        col.addView(Ui.text(this,
+                shared.isEmpty() ? "choose files, or share to barq from any app"
+                                 : firstNames(),
+                12, Ui.TEXT_FAINT, false));
         files.addView(col);
+
+        // Barq should be usable on its own, not only as a share target. Without this
+        // the send half of the app could do nothing unless another app started it.
+        TextView choose = Ui.text(this, shared.isEmpty() ? "CHOOSE" : "CHANGE",
+                                  11, Ui.ON_ACCENT, true);
+        choose.setLetterSpacing(0.1f);
+        choose.setGravity(Gravity.CENTER);
+        choose.setBackground(Ui.card(this, Ui.ACCENT, Color.TRANSPARENT, 8));
+        choose.setPadding(Ui.dp(this, 16), Ui.dp(this, 9), Ui.dp(this, 16), Ui.dp(this, 9));
+        choose.setOnClickListener(v -> pickFiles());
+        files.addView(choose);
         content.addView(files);
 
         content.addView(buildProgressCard());
@@ -386,6 +446,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         content.addView(Ui.sectionLabel(this, "Send to nearby devices"));
         peerBox = Ui.cardBox(this);
         peerBox.setMinimumHeight(Ui.dp(this, 150));
+        peerSignature = "";   // fresh views, so the next refresh must populate them
         content.addView(peerBox);
         refreshPeers();
     }
@@ -454,33 +515,79 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             return;
         }
         sendMode = send;
-        // Receiving and sending are mutually exclusive here: advertising while picking a
-        // peer would leave the device findable for a reason the user did not ask for.
-        setDiscoverable(!send);
+        // Ask first, then rebuild: render() replaces every view, so a state written
+        // before it lands on views that are about to be thrown away.
+        setDiscoverable(!send, "modeSwitch");
         render();
     }
 
     // ------------------------------------------------------------- service ---
 
-    private void connect() {
+    /**
+     * Bind to the daemon, replacing a dead proxy if there is one.
+     *
+     * The daemon can restart -- it is a native service under init, and it does restart
+     * on crash or upgrade. When it does, every proxy the client holds is permanently
+     * dead: each call throws and no amount of retrying revives it. Catching the
+     * exception and carrying on, which is what this did, meant the app looked alive and
+     * silently did nothing until it was force-stopped and reopened.
+     *
+     * @return true if a usable binding exists afterwards
+     */
+    private boolean connect() {
         IBinder binder = ServiceManager.getService(SERVICE_NAME);
         if (binder == null) {
             Log.e(TAG, "daemon did not publish " + SERVICE_NAME);
-            return;
+            service = null;
+            return false;
         }
         service = IBarqService.Stub.asInterface(binder);
         try {
             service.registerCallback(callback);
+            // Notice the daemon going away, rather than finding out on the next call
+            // and treating it as an ordinary failure.
+            binder.linkToDeath(deathRecipient, 0);
         } catch (Exception e) {
             Log.e(TAG, "could not register callback", e);
+            service = null;
+            return false;
         }
+        return true;
+    }
+
+    private final IBinder.DeathRecipient deathRecipient = new IBinder.DeathRecipient() {
+        @Override
+        public void binderDied() {
+            Log.w(TAG, "daemon died — will rebind");
+            service = null;
+            // Do NOT rebind immediately: a service that has just died has not
+            // re-registered yet, so the first attempt reliably finds nothing. The poll
+            // loop retries until it is back, which also covers a daemon that takes a
+            // while to come up.
+            main.post(() -> setIdentityState("reconnecting\u2026", false));
+        }
+    };
+
+    /**
+     * Recover from a dead proxy discovered mid-call.
+     *
+     * linkToDeath is the fast path, but a call can still land on a proxy that has just
+     * died, so every caller treats a failure as "reconnect and try once more".
+     */
+    private boolean reconnect() {
+        Log.i(TAG, "rebinding to the daemon");
+        service = null;
+        return connect();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        if (service == null) {
+            connect();
+        }
         startService(new Intent(this, BarqBleService.class));
-        setDiscoverable(!sendMode);
+        setDiscoverable(!sendMode, "onResume");
         main.post(poll);
         if (!sendMode) {
             collect();
@@ -491,7 +598,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     protected void onPause() {
         super.onPause();
         main.removeCallbacks(poll);
-        setDiscoverable(false);
+        setDiscoverable(false, "onPause");
         stopService(new Intent(this, BarqBleService.class));
     }
 
@@ -507,19 +614,38 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         super.onDestroy();
     }
 
-    private void setDiscoverable(boolean visible) {
+    private void setDiscoverable(boolean visible, String why) {
+        Log.i(TAG, "setDiscoverable(" + visible + ") from " + why + " sendMode=" + sendMode);
         if (service == null) {
             setIdentityState("barq service unavailable", false);
             return;
         }
         try {
             service.setDiscoverable(visible, visible ? VISIBLE_SECONDS : 0);
+            discoverable = visible;
+            if (visible) {
+                visibleSince = System.currentTimeMillis();
+            }
             if (!sendMode) {
                 setIdentityState(visible ? "visible to everyone nearby" : "not visible",
                                  visible);
             }
         } catch (Exception e) {
-            Log.e(TAG, "setDiscoverable failed", e);
+            Log.w(TAG, "setDiscoverable failed, rebinding", e);
+            if (reconnect()) {
+                try {
+                    service.setDiscoverable(visible, visible ? VISIBLE_SECONDS : 0);
+                    discoverable = visible;
+                    if (visible) {
+                        visibleSince = System.currentTimeMillis();
+                    }
+                    setIdentityState(visible ? "visible to everyone nearby" : "not visible",
+                                     visible);
+                    return;
+                } catch (Exception again) {
+                    Log.e(TAG, "still cannot reach the daemon", again);
+                }
+            }
             setIdentityState("cannot reach the barq service", false);
         }
     }
@@ -556,11 +682,64 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
     }
 
+    /**
+     * Open the system picker.
+     *
+     * OPEN_DOCUMENT rather than GET_CONTENT: it returns a persistable URI the daemon can
+     * still read after the picker is gone, which matters because the transfer outlives
+     * this screen.
+     */
+    private void pickFiles() {
+        Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        pick.addCategory(Intent.CATEGORY_OPENABLE);
+        pick.setType("*/*");
+        pick.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        pick.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startActivityForResult(pick, REQ_PICK);
+        } catch (Exception e) {
+            Log.e(TAG, "no document picker available", e);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request != REQ_PICK || result != RESULT_OK || data == null) {
+            return;
+        }
+        shared.clear();
+        if (data.getClipData() != null) {
+            android.content.ClipData clip = data.getClipData();
+            for (int i = 0; i < clip.getItemCount(); i++) {
+                shared.add(clip.getItemAt(i).getUri());
+            }
+        } else if (data.getData() != null) {
+            shared.add(data.getData());
+        }
+        render();
+    }
+
+    /** The first couple of filenames, so the row says what is actually going. */
+    private String firstNames() {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < shared.size() && i < 2; i++) {
+            if (i > 0) {
+                b.append(", ");
+            }
+            b.append(displayName(shared.get(i)));
+        }
+        if (shared.size() > 2) {
+            b.append(" +").append(shared.size() - 2);
+        }
+        return b.toString();
+    }
+
     private String describeShared() {
         if (shared.isEmpty()) {
-            return "Share a file to Barq to send it";
+            return "nothing chosen";
         }
-        return shared.size() == 1 ? "1 item" : shared.size() + " items";
+        return shared.size() == 1 ? "1 file ready" : shared.size() + " files ready";
     }
 
     private void refreshPeers() {
@@ -571,7 +750,11 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         try {
             peers = service.getPeers();
         } catch (Exception e) {
-            Log.e(TAG, "getPeers failed", e);
+            // Almost certainly a dead proxy from a daemon restart. Rebind and let the
+            // next tick populate; failing silently here is what made the list stay
+            // empty until the app was restarted by hand.
+            Log.w(TAG, "getPeers failed, rebinding", e);
+            reconnect();
             return;
         }
         // A peer whose "name" is still the raw 12-hex mDNS identifier has not answered
@@ -585,6 +768,15 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             }
         }
         peers = named.toArray(new BarqPeer[0]);
+
+        StringBuilder sig = new StringBuilder();
+        for (BarqPeer p : peers) {
+            sig.append(p.id).append('|').append(p.name).append('\n');
+        }
+        if (sig.toString().equals(peerSignature)) {
+            return;   // nothing changed; leave the views (and their listeners) alone
+        }
+        peerSignature = sig.toString();
 
         peerBox.removeAllViews();
         if (peers.length == 0) {
@@ -638,7 +830,13 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     private void sendTo(BarqPeer peer) {
-        if (service == null || shared.isEmpty()) {
+        Log.i(TAG, "sendTo " + peer.name + " with " + shared.size() + " file(s)");
+        if (service == null) {
+            Log.w(TAG, "no service");
+            return;
+        }
+        if (shared.isEmpty()) {
+            Log.w(TAG, "nothing chosen");
             return;
         }
         List<ParcelFileDescriptor> fds = new ArrayList<>();
