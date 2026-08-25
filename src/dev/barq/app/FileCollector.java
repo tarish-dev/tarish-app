@@ -38,14 +38,24 @@ final class FileCollector {
 
     private FileCollector() {}
 
-    /** One file that made it to Downloads/Barq, and how big it turned out to be. */
+    /** One file that made it to Downloads/Barq. */
     static final class Stored {
         final String name;
         final long bytes;
+        /**
+         * Where it landed, so the UI can offer to open it.
+         *
+         * Without this a received file vanished into Downloads with no acknowledgement,
+         * which was the worst thing about the old screen: the transfer succeeded and
+         * left no trace the user could act on.
+         */
+        final Uri uri;
+        final long receivedAt = System.currentTimeMillis();
 
-        Stored(String name, long bytes) {
+        Stored(String name, long bytes, Uri uri) {
             this.name = name;
             this.bytes = bytes;
+            this.uri = uri;
         }
     }
 
@@ -67,21 +77,21 @@ final class FileCollector {
             return stored;
         }
         for (String name : names) {
-            long n = collectOne(context, service, name);
-            if (n >= 0) {
-                stored.add(new Stored(name, n));
+            Stored s = collectOne(context, service, name);
+            if (s != null) {
+                stored.add(s);
             }
         }
         return stored;
     }
 
-    /** @return bytes stored, or -1 if the file could not be stored */
-    private static long collectOne(Context context, IBarqService service, String name) {
+    /** @return what was stored, or null if it could not be */
+    private static Stored collectOne(Context context, IBarqService service, String name) {
         Uri dest = null;
         try (ParcelFileDescriptor pfd = service.openReceivedFile(name)) {
             if (pfd == null) {
                 Log.w(TAG, "daemon returned no descriptor for " + name);
-                return -1;
+                return null;
             }
             ContentResolver resolver = context.getContentResolver();
 
@@ -95,7 +105,7 @@ final class FileCollector {
             dest = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
             if (dest == null) {
                 Log.e(TAG, "MediaStore refused an entry for " + name);
-                return -1;
+                return null;
             }
 
             long copied = 0;
@@ -103,7 +113,7 @@ final class FileCollector {
                  OutputStream out = resolver.openOutputStream(dest)) {
                 if (out == null) {
                     Log.e(TAG, "no output stream for " + name);
-                    return -1;
+                    return null;
                 }
                 byte[] buf = new byte[64 * 1024];
                 int n;
@@ -121,7 +131,7 @@ final class FileCollector {
             // the file is still in the inbox and the next attempt can retry it.
             service.deleteReceivedFile(name);
             Log.i(TAG, "stored " + name + " (" + copied + " bytes) in " + DEST_DIR);
-            return copied;
+            return new Stored(name, copied, dest);
 
         } catch (IOException | RuntimeException e) {
             Log.e(TAG, "could not store " + name, e);
@@ -133,10 +143,10 @@ final class FileCollector {
                     // Nothing useful to do; the entry stays pending and hidden.
                 }
             }
-            return -1;
+            return null;
         } catch (Exception e) {
             Log.e(TAG, "binder failure collecting " + name, e);
-            return -1;
+            return null;
         }
     }
 }

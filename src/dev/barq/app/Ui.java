@@ -6,6 +6,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.ViewGroup;
+import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -20,24 +21,34 @@ import android.widget.TextView;
  */
 final class Ui {
 
-    /** Page background. */
-    static final int BG = Color.parseColor("#16181D");
-    /** Card surface. Cards carry the content; the page itself holds almost nothing. */
-    static final int SURFACE = Color.parseColor("#33363E");
-    static final int SURFACE_EDGE = Color.TRANSPARENT;
-    /** A subtler fill for the circle behind a status icon. */
-    static final int SURFACE_SUNK = Color.parseColor("#3B3E47");
+    // Barq's own look, not a copy of the reference it was measured against.
+    //
+    // That reference is soft: lavender, pill shapes, 26dp corners, everything floating
+    // in its own rounded card. Barq is برق, lightning -- so this is the opposite
+    // register: near-black, amber, tight corners, hairline rules instead of cards, and
+    // uppercase micro-labels. It should read like an instrument rather than a settings
+    // page.
 
-    /** Barq is برق, lightning. */
-    static final int ACCENT = Color.parseColor("#B9C3FF");
-    static final int ACCENT_DIM = Color.parseColor("#3D4260");
-    /** Filled circle behind a device or identity glyph. */
-    static final int ACCENT_FILL = Color.parseColor("#DDE1FF");
-    static final int ON_ACCENT = Color.parseColor("#1B2559");
+    /** Page background. Almost black; the accent has to be the only bright thing. */
+    static final int BG = Color.parseColor("#0A0A0C");
+    /** A raised block. Barely lighter than the page -- separation comes from rules. */
+    static final int SURFACE = Color.parseColor("#131317");
+    static final int SURFACE_EDGE = Color.parseColor("#1F1F26");
+    static final int SURFACE_SUNK = Color.parseColor("#1A1A20");
+    /** Hairline between rows, which replaces one-card-per-item. */
+    static final int RULE = Color.parseColor("#22222A");
 
-    static final int TEXT = Color.parseColor("#E4E6ED");
-    static final int TEXT_MUTED = Color.parseColor("#C2C6D2");
-    static final int TEXT_FAINT = Color.parseColor("#8E93A1");
+    /** Lightning: amber, not a system blue. The one saturated colour on the screen. */
+    static final int ACCENT = Color.parseColor("#FFC531");
+    static final int ACCENT_DIM = Color.parseColor("#7A5C12");
+    static final int ACCENT_FILL = Color.parseColor("#FFC531");
+    static final int ON_ACCENT = Color.parseColor("#0A0A0C");
+    /** A live indicator: transfers and visibility use it, nothing else does. */
+    static final int LIVE = Color.parseColor("#3DDC84");
+
+    static final int TEXT = Color.parseColor("#F5F5F7");
+    static final int TEXT_MUTED = Color.parseColor("#9A9AA6");
+    static final int TEXT_FAINT = Color.parseColor("#61616E");
 
     private Ui() {}
 
@@ -59,19 +70,43 @@ final class Ui {
     // card; the page itself is nearly empty. Grouping is what makes it scannable, and
     // the flat full-bleed layout this replaced had none.
 
-    /** The small coloured heading above a card, e.g. "You'll appear as". */
+    /**
+     * An uppercase micro-label: INBOX, NEARBY.
+     *
+     * Letterspaced and small rather than coloured and sentence-case. It marks a region
+     * without competing with the content, which is what a heading in a utility should do.
+     */
     static TextView sectionLabel(Context c, String s) {
-        TextView t = text(c, s, 13, ACCENT, true);
-        t.setPadding(dp(c, 4), dp(c, 22), 0, dp(c, 8));
+        TextView t = text(c, s.toUpperCase(), 11, TEXT_FAINT, true);
+        t.setLetterSpacing(0.18f);
+        t.setPadding(dp(c, 2), dp(c, 26), 0, dp(c, 10));
         return t;
     }
 
-    /** A card: rounded, raised, holding one group of content. */
+    /** A hairline. Used instead of giving every row its own card. */
+    static View rule(Context c) {
+        View v = new View(c);
+        v.setBackgroundColor(RULE);
+        v.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(c, 0.5f))));
+        return v;
+    }
+
+    /** A small filled dot, for "live" states. */
+    static View dot(Context c, int color, int sizeDp) {
+        View v = new View(c);
+        v.setBackground(circle(color));
+        int d = dp(c, sizeDp);
+        v.setLayoutParams(new LinearLayout.LayoutParams(d, d));
+        return v;
+    }
+
+    /** A raised block. Tight corners, hairline edge — an instrument panel, not a pill. */
     static LinearLayout cardBox(Context c) {
         LinearLayout l = new LinearLayout(c);
         l.setOrientation(LinearLayout.VERTICAL);
-        l.setBackground(card(c, SURFACE, SURFACE_EDGE, 26));
-        int p = dp(c, 18);
+        l.setBackground(card(c, SURFACE, SURFACE_EDGE, 12));
+        int p = dp(c, 16);
         l.setPadding(p, p, p, p);
         return l;
     }
