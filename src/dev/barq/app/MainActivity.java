@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -782,12 +784,42 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * we are NOT discoverable and very much need the radio. Gating the link on
      * visibility would take it down under every outgoing transfer.
      */
+    /**
+     * The frequency Wi-Fi is associated on, in MHz, or 0 if it is not.
+     *
+     * The daemons cannot answer this. Both are native, neither has framework access,
+     * and the association frequency is not exposed as a file either could read -- so
+     * the app is the only place it can come from, and it is why setActive carries it.
+     *
+     * It decides which BAND AWDL uses. The chip does 2.4 and 5 GHz simultaneously but
+     * cannot hold two 5 GHz channels, so AWDL goes in the other band from Wi-Fi.
+     * Getting this wrong drops the Wi-Fi association within about three seconds.
+     */
+    private int staFrequencyMhz() {
+        try {
+            WifiManager wm = getSystemService(WifiManager.class);
+            if (wm == null) {
+                return 0;
+            }
+            WifiInfo info = wm.getConnectionInfo();
+            if (info == null) {
+                return 0;
+            }
+            int f = info.getFrequency();
+            return f > 0 ? f : 0;
+        } catch (Exception e) {
+            // Not fatal: the daemon treats 0 as "unknown" and keeps its previous choice.
+            Log.w(TAG, "could not read the Wi-Fi frequency", e);
+            return 0;
+        }
+    }
+
     private void setActive(boolean active) {
         if (service == null) {
             return;
         }
         try {
-            service.setActive(active);
+            service.setActive(active, staFrequencyMhz());
         } catch (Exception e) {
             // An older daemon does not have this method. That is survivable: it
             // simply keeps the radio up, which is what it did before this existed.
