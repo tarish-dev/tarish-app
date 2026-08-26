@@ -6,6 +6,28 @@ Barq stands on other people's work. This file records what and whose.
 
 <https://github.com/kyujin-cho/Bada>
 
+> **Licence status: none, and this is a decision point, not a detail.** The
+> repository carries no LICENSE file and no licence statement in its README, which
+> by default means all rights reserved — no permission to copy, modify or
+> redistribute. Attribution does not substitute for permission; crediting someone is
+> a condition some licences impose, never a replacement for having one.
+>
+> **Operator decision (2026-08-26):** Barq stays private for now, so Bada may be used
+> internally; permission will be sought from the author, and if none comes the work
+> will be credited regardless.
+>
+> **The trigger is publication, not time.** Internal use is a weak exposure. Shipping
+> Bada's code inside a public Barq is not, and it cannot be undone afterwards. So the
+> question to ask is never "did he reply yet" but "am I about to make this public" —
+> and if the answer is yes and the licence is still absent, the code has to come out
+> or be reimplemented first.
+>
+> What is always safe: protocols are not copyrightable. Reading Bada to learn how
+> Quick Share works, and writing an independent implementation, is legitimate and is
+> exactly what this project already did with OpenDrop for AirDrop. `core-protocol` is
+> pure Kotlin/JVM by design — "this module has NO `android.*`" — which makes it
+> readable as a specification.
+
 An independent Quick Share implementation for Android, without GMS. Barq's app
 side takes its structure from Bada: share-sheet integration, a foreground
 receiver service, a Quick Settings tile, and NFC tap-to-share. Bada was also what
