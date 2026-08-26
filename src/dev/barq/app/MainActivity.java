@@ -149,6 +149,17 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 // daemon is holding the connection open waiting for this answer, and
                 // showing a progress bar for a transfer nobody has agreed to was how
                 // the old auto-accept looked from the outside.
+                // Never prompt for a transfer WE started.
+                //
+                // The daemon no longer raises an offer on the send path, which is what
+                // made tapping a peer put an Accept/Decline card on the sending phone.
+                // This is the second lock on that door: the two callbacks now mean
+                // opposite things, and confusing them again would look exactly like a
+                // device asking itself for permission.
+                if (id == activeTransfer) {
+                    Log.w(TAG, "ignoring an offer for our own transfer " + id);
+                    return;
+                }
                 offerId = id;
                 offerFrom = (peer == null || peer.isEmpty()) ? "A nearby device" : peer;
                 offerNames = names == null ? new String[0] : names;
