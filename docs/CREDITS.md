@@ -6,21 +6,27 @@ Barq stands on other people's work. This file records what and whose.
 
 <https://github.com/kyujin-cho/Bada>
 
-> **Licence status: none, and this is a decision point, not a detail.** The
-> repository carries no LICENSE file and no licence statement in its README, which
-> by default means all rights reserved — no permission to copy, modify or
-> redistribute. Attribution does not substitute for permission; crediting someone is
-> a condition some licences impose, never a replacement for having one.
+> **Licence: Apache 2.0.** This entry previously said "none, and this is a decision
+> point" on the basis that the repository has no LICENSE file. That was wrong, and the
+> mistake was looking in the wrong place: **430 of Bada's 434 Kotlin files carry**
 >
-> **Operator decision (2026-08-26):** Barq stays private for now, so Bada may be used
-> internally; permission will be sought from the author, and if none comes the work
-> will be credited regardless.
+> ```
+> Copyright 2026 Bada contributors.
+> Licensed under the Apache License, Version 2.0.
+> ```
 >
-> **The trigger is publication, not time.** Internal use is a weak exposure. Shipping
-> Bada's code inside a public Barq is not, and it cannot be undone afterwards. So the
-> question to ask is never "did he reply yet" but "am I about to make this public" —
-> and if the answer is yes and the licence is still absent, the code has to come out
-> or be reimplemented first.
+> A per-file header is a licence grant. Apache 2.0 permits use, modification and
+> redistribution, including in a closed-source product, provided the copyright notice
+> and licence are preserved and modified files are marked as changed.
+>
+> **So the decision that was parked no longer needs making.** There is no permission to
+> seek and no publication trigger to watch: Barq may use this code, publicly, today.
+> What Apache 2.0 does require is attribution, which is what this file is for, plus the
+> notice retained in each derived file — see the header on `protocol/src/hkdf.rs`.
+>
+> Recorded rather than quietly deleted because the earlier conclusion drove real
+> decisions, including a plan to reimplement rather than port. Knowing it was based on
+> a missing LICENSE file, and not on an actual absence of licence, is the useful part.
 >
 > What is always safe: protocols are not copyrightable. Reading Bada to learn how
 > Quick Share works, and writing an independent implementation, is legitimate and is
