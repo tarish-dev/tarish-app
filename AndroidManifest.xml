@@ -33,6 +33,37 @@
     <!-- Privileged, granted through etc/privapp-permissions-dev.barq.app.xml. -->
     <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED" />
 
+    <!--
+      WI-FI IS A PRECONDITION, NOT A PREFERENCE.
+
+      With Wi-Fi off, AWDL cannot start at all: the AWDL driver rides the Wi-Fi driver's
+      interface, so every radio mode and every channel is refused. Measured on frankel.
+      A user with Wi-Fi off therefore sees an app that simply never finds anybody, which
+      is exactly what was reported. Without ACCESS_WIFI_STATE we could not even detect
+      it, let alone say so.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+
+    <!--
+      setWifiEnabled() has returned false for ordinary apps since API 29. NETWORK_SETTINGS
+      is what still permits it, and it is what lets Barq offer to turn Wi-Fi on and then
+      put it back exactly as it was. Without it the app can see that Wi-Fi is off and tell
+      the user, but cannot offer to fix it.
+
+      NOT a privileged permission and NOT in privapp-permissions. Its protectionLevel is
+      plain "signature", so it is granted by the platform certificate this app is signed
+      with. Listing a signature-only permission in the privapp whitelist would be wrong:
+      that file exists for signature|privileged permissions, and every entry in it is a
+      claim that the permission needs whitelisting to be granted at all.
+
+      It is a powerful permission and it is declared here explicitly rather than relied
+      on implicitly. The app shares uid with android.uid.system, so it would inherit this
+      through the shared uid regardless, and an inherited capability nobody wrote down is
+      the kind that gets audited wrongly later.
+    -->
+    <uses-permission android:name="android.permission.NETWORK_SETTINGS" />
+
     <!-- BLE advertising is the discovery trigger; without it the device is invisible. -->
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 

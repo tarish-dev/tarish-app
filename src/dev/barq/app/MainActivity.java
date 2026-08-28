@@ -1,6 +1,7 @@
 package dev.barq.app;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
@@ -68,6 +69,39 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private LinearLayout content;
     private boolean sendMode;
     private long activeTransfer;
+
+    /**
+     * The radios Barq needs, and whether we were the ones who switched them on.
+     *
+     * AWDL cannot start with Wi-Fi off -- not "works badly", cannot start: every mode and
+     * channel is refused, because the AWDL driver rides the Wi-Fi driver's interface. A
+     * user with Wi-Fi off saw an app that never found anybody and no explanation, which is
+     * what was reported. See Radios.
+     */
+    private Radios radios;
+
+    /** Set once per foreground visit, so a declined prompt is not asked again immediately. */
+    private boolean askedAboutRadios;
+
+    /**
+     * Deferred restore. Same reasoning as the AWDL radio gate: leaving the app for a file
+     * picker or a glance at a notification should not cycle the user's Wi-Fi. Only a real
+     * departure does, and never mid-transfer.
+     */
+    private static final long RADIO_RESTORE_DELAY_MS = 30_000L;
+
+    private final Runnable restoreRadios = new Runnable() {
+        @Override
+        public void run() {
+            if (activeTransfer != 0) {
+                // A transfer outlives the foreground. Try again once it is done rather
+                // than pulling the radio out from under it.
+                main.postDelayed(this, RADIO_RESTORE_DELAY_MS);
+                return;
+            }
+            radios.restore();
+        }
+    };
     /**
      * What we last asked the daemon for.
      *
@@ -213,6 +247,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        radios = new Radios(this);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         if (getActionBar() != null) {
             getActionBar().hide();
@@ -744,6 +779,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             connect();
         }
         startService(new Intent(this, BarqBleService.class));
+        // Cancel any pending restore: the user came back, so the radios stay as they are.
+        main.removeCallbacks(restoreRadios);
+        promptForRadiosIfNeeded();
         setActive(true);
         setDiscoverable(!sendMode, "onResume");
         main.post(poll);
@@ -762,6 +800,13 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // another app does not tear the link down and back up.
         setActive(false);
         stopService(new Intent(this, BarqBleService.class));
+        askedAboutRadios = false;
+        // Put back only what we turned on, and not for another half minute. Anything the
+        // user already had on is never touched -- see Radios.
+        if (radios.owesRestore()) {
+            main.removeCallbacks(restoreRadios);
+            main.postDelayed(restoreRadios, RADIO_RESTORE_DELAY_MS);
+        }
     }
 
     @Override
@@ -1150,5 +1195,39 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
         String last = uri.getLastPathSegment();
         return last == null || last.isEmpty() ? "file" : last;
+    }
+
+    /**
+     * Offer to turn on whatever Barq needs, if anything is off.
+     *
+     * Asked at most once per foreground visit: a user who says no should be able to look
+     * around the app without being nagged, and the answer is obvious enough from the empty
+     * peer list. Saying yes is remembered only for as long as it takes to put it back.
+     */
+    private void promptForRadiosIfNeeded() {
+        if (askedAboutRadios || !radios.anythingOff()) {
+            return;
+        }
+        askedAboutRadios = true;
+        final String off = radios.whatIsOff();
+        new AlertDialog.Builder(this)
+                .setTitle("Turn on " + off + "?")
+                .setMessage("Barq needs " + off + " to find nearby devices. "
+                        + "If you had it off, Barq turns it back off when you leave.")
+                .setPositiveButton("Turn on", (d, w) -> {
+                    if (!radios.enableAll()) {
+                        // Do not fail silently. Failing silently with Wi-Fi off is the
+                        // exact bug this path exists to fix, and a refusal here means
+                        // something is wrong with our privileges, not with the user.
+                        Log.w(TAG, "could not turn on " + off);
+                        new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("Could not turn on " + off)
+                                .setMessage("Turn it on from Settings, then come back.")
+                                .setPositiveButton("OK", null)
+                                .show();
+                    }
+                })
+                .setNegativeButton("Not now", null)
+                .show();
     }
 }
