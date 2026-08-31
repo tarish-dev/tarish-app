@@ -602,8 +602,26 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
 
         // Choosing again clears a previous outcome, so the row stops reporting a
         // transfer the user has moved on from.
-        content.addView(Ui.sectionLabel(this,
-                shared.isEmpty() ? "Nearby devices" : "Send to nearby devices"));
+        // Section label with a refresh affordance on the right.
+        //
+        // WHY A MANUAL REFRESH EXISTS. Discovery is mDNS, so a peer that goes away
+        // stays listed until its TTL runs out, and one that was never fully resolved
+        // stays half-resolved. On a link that flaps -- frankel, where AWDL owns the
+        // radio and Wi-Fi scanning contends with it -- that stale state is exactly
+        // what the user is looking at when they wonder why their Mac is not there.
+        // Waiting out a TTL is not something a person should have to know about.
+        LinearLayout labelRow = new LinearLayout(this);
+        labelRow.setOrientation(LinearLayout.HORIZONTAL);
+        labelRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView label = Ui.sectionLabel(this,
+                shared.isEmpty() ? "Nearby devices" : "Send to nearby devices");
+        labelRow.addView(label, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        TextView refresh = Ui.text(this, "REFRESH", 11, Ui.ACCENT, true);
+        refresh.setPadding(Ui.dp(this, 12), Ui.dp(this, 6), Ui.dp(this, 4), Ui.dp(this, 6));
+        refresh.setOnClickListener(v -> forceRediscover());
+        labelRow.addView(refresh);
+        content.addView(labelRow);
         peerBox = Ui.cardBox(this);
         peerBox.setMinimumHeight(Ui.dp(this, 150));
         peerSignature = null;   // fresh views, so the next refresh MUST populate them
@@ -1204,6 +1222,34 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * around the app without being nagged, and the answer is obvious enough from the empty
      * peer list. Saying yes is remembered only for as long as it takes to put it back.
      */
+    /**
+     * Drop everything we think we know about peers and browse again.
+     *
+     * Deliberately clears the local view too rather than waiting for the next poll:
+     * a refresh that leaves the stale rows on screen for a second reads as "nothing
+     * happened", and the user taps it again.
+     */
+    private void forceRediscover() {
+        if (service == null) {
+            Log.w(TAG, "refresh: not connected to the daemon");
+            return;
+        }
+        try {
+            service.refreshPeers();
+            peerSignature = null;       // force the next poll to rebuild the rows
+            if (peerBox != null) {
+                peerBox.removeAllViews();
+                TextView searching = Ui.text(this, "Searching\u2026", 12, Ui.TEXT_FAINT, false);
+                searching.setGravity(Gravity.CENTER);
+                searching.setPadding(0, Ui.dp(this, 24), 0, Ui.dp(this, 24));
+                peerBox.addView(searching);
+            }
+            Log.i(TAG, "refresh: asked the daemon to re-browse");
+        } catch (RemoteException e) {
+            Log.w(TAG, "refresh failed", e);
+        }
+    }
+
     private void promptForRadiosIfNeeded() {
         if (askedAboutRadios || !radios.anythingOff()) {
             return;
