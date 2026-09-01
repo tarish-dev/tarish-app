@@ -1245,7 +1245,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 peerBox.addView(searching);
             }
             Log.i(TAG, "refresh: asked the daemon to re-browse");
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             Log.w(TAG, "refresh failed", e);
         }
     }

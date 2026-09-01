@@ -6,6 +6,10 @@ import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
@@ -42,9 +46,45 @@ public final class BarqBleService extends Service {
     private BluetoothLeAdvertiser advertiser;
     private BluetoothLeScanner scanner;
 
+    /** True between a successful startAdvertising and the matching stop. */
+    private boolean advertising;
+
+    /**
+     * Re-arms the beacon when Bluetooth comes back.
+     *
+     * onCreate used to say "the receiver restarts us" while no receiver existed. The
+     * consequence, measured: cycle the adapter and the beacon never returns. Bluetooth
+     * reports enabled, the service record is still there, and an explicit startService
+     * logs nothing -- because advertising was only ever started from onCreate, and the
+     * advertiser handle held across a cycle is stale. Silent, and it breaks receiving
+     * as well as sending, so anything ordinary that toggles Bluetooth -- airplane mode,
+     * a system event, the user -- leaves Barq invisible with no error.
+     */
+    private final BroadcastReceiver adapterState = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context c, Intent i) {
+            if (!BluetoothAdapter.ACTION_STATE_CHANGED.equals(i.getAction())) {
+                return;
+            }
+            int state = i.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
+            if (state == BluetoothAdapter.STATE_ON) {
+                Log.i(TAG, "Bluetooth came back — re-arming the beacon");
+                acquireAndStart();
+            } else if (state == BluetoothAdapter.STATE_OFF
+                    || state == BluetoothAdapter.STATE_TURNING_OFF) {
+                // The handles do not survive the adapter going down. Drop them rather
+                // than calling into them later and getting silence.
+                advertising = false;
+                advertiser = null;
+                scanner = null;
+            }
+        }
+    };
+
     private final AdvertiseCallback advertiseCallback = new AdvertiseCallback() {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
+            advertising = true;
             Log.i(TAG, "advertising AirDrop beacon, mode="
                     + settingsInEffect.getMode() + " txPower=" + settingsInEffect.getTxPowerLevel());
         }
@@ -54,6 +94,7 @@ public final class BarqBleService extends Service {
             // Worth naming: ADVERTISE_FAILED_FEATURE_UNSUPPORTED here means the radio
             // cannot advertise at all, which is a hardware fact and not something a
             // retry will fix. The others usually are transient.
+            advertising = false;
             Log.e(TAG, "advertising failed: " + describeAdvertiseError(errorCode));
         }
     };
@@ -81,6 +122,11 @@ public final class BarqBleService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        // Registered BEFORE the first attempt, so a cycle that happens while we are
+        // starting is still seen.
+        registerReceiver(adapterState,
+                new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED),
+                Context.RECEIVER_NOT_EXPORTED);
         BluetoothManager manager = getSystemService(BluetoothManager.class);
         BluetoothAdapter adapter = manager != null ? manager.getAdapter() : null;
         if (adapter == null || !adapter.isEnabled()) {
@@ -88,6 +134,28 @@ public final class BarqBleService extends Service {
             // and the receiver restarts us. Say so plainly rather than failing silently.
             Log.w(TAG, "Bluetooth is off — no beacon until it is enabled");
             return;
+        }
+        acquireAndStart();
+    }
+
+    /**
+     * Take fresh handles from the adapter and start. Safe to call repeatedly.
+     *
+     * The handles are re-fetched every time on purpose: one held across an adapter
+     * cycle is stale, and using it fails quietly rather than throwing.
+     */
+    private void acquireAndStart() {
+        BluetoothManager manager = getSystemService(BluetoothManager.class);
+        BluetoothAdapter adapter = manager != null ? manager.getAdapter() : null;
+        if (adapter == null || !adapter.isEnabled()) {
+            Log.w(TAG, "Bluetooth is off — no beacon until it is enabled");
+            return;
+        }
+        if (advertising && advertiser != null) {
+            // Starting twice fails with ALREADY_STARTED and leaves the first one
+            // running, so the second call looks like a failure and changes nothing.
+            advertiser.stopAdvertising(advertiseCallback);
+            advertising = false;
         }
         advertiser = adapter.getBluetoothLeAdvertiser();
         scanner = adapter.getBluetoothLeScanner();
@@ -142,6 +210,10 @@ public final class BarqBleService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // Re-assert on every start, not just the first. An already-running service
+        // otherwise ignores startService entirely, so there was no way to recover a
+        // dead beacon short of killing the app.
+        acquireAndStart();
         // NOT sticky. Visibility belongs to the user through MainActivity, so a service
         // that resurrected itself after being killed would advertise with nothing open
         // -- exactly the behaviour this design exists to prevent.
@@ -150,6 +222,12 @@ public final class BarqBleService extends Service {
 
     @Override
     public void onDestroy() {
+        try {
+            unregisterReceiver(adapterState);
+        } catch (IllegalArgumentException e) {
+            // Never registered, which happens if onCreate bailed early.
+        }
+        advertising = false;
         if (advertiser != null) {
             advertiser.stopAdvertising(advertiseCallback);
         }
