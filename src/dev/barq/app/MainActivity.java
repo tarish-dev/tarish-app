@@ -126,6 +126,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private String peerSignature;
     /** When visibility was last asserted, so it can be renewed before the daemon expires it. */
     private long visibleSince;
+    /** Which protocol the pending offer arrived over; one of IBarqService.PROTOCOL_*. */
+    private int offerProtocol;
     /** The offer waiting for an answer, or null. Set by onTransferOffered. */
     private long offerId;
     private String offerFrom;
@@ -183,7 +185,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         @Override public void onPeerLost(String peerId) {}
 
         @Override
-        public void onTransferOffered(long id, String peer, String[] names, long bytes) {
+        public void onTransferOffered(long id, String peer, String[] names, long bytes,
+                int protocol) {
             main.post(() -> {
                 // Do NOT start progress here. Nothing is being received yet -- the
                 // daemon is holding the connection open waiting for this answer, and
@@ -203,6 +206,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 offerId = id;
                 offerFrom = (peer == null || peer.isEmpty()) ? "A nearby device" : peer;
                 offerNames = names == null ? new String[0] : names;
+                offerProtocol = protocol;
                 if (sendMode) {
                     // An offer arrives on the receive side by definition. Switch, or
                     // the prompt would be built into a screen nobody is looking at.
@@ -423,6 +427,17 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      */
     private LinearLayout buildOfferCard() {
         LinearLayout card = Ui.cardBox(this);
+
+        // Name the protocol on the prompt. "Someone wants to send you a file" is a
+        // different decision over AirDrop than over Quick Share -- different world,
+        // different set of people who could be nearby -- and the sender's name does not
+        // say which. It sits ABOVE the name so it is read before the decision, not
+        // after it.
+        LinearLayout badgeRow = new LinearLayout(this);
+        badgeRow.setPadding(0, 0, 0, Ui.dp(this, 8));
+        badgeRow.addView(Ui.badge(this,
+                offerProtocol == IBarqService.PROTOCOL_QUICKSHARE ? "Quick Share" : "AirDrop"));
+        card.addView(badgeRow);
 
         card.addView(Ui.text(this, offerFrom + " wants to send", 17, Ui.TEXT, true));
 
@@ -1130,6 +1145,24 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         if (service == null || peerBox == null) {
             return;
         }
+        // DO NOT LIST DEVICES THAT CANNOT BE SENT TO.
+        //
+        // Discovery keeps running for its own reasons, so peers found before sending was
+        // turned off stayed on screen, stayed tappable, and failed at the last step --
+        // the daemon refuses sendFiles, correctly, but by then the person has chosen a
+        // device and picked files. Offering an action that is known to be refused is the
+        // wrong place to enforce a policy.
+        //
+        // The send screen carries the reason (see blockedNotice), so clearing the list
+        // leaves an explanation rather than an empty box. Returning before getPeers also
+        // stops asking the daemon to re-query for a list nobody may act on.
+        if (policy != null && !PolicyStore.allowsSend(policy.airdrop)) {
+            if (!"blocked".equals(peerSignature)) {
+                peerSignature = "blocked";
+                peerBox.removeAllViews();
+            }
+            return;
+        }
         BarqPeer[] peers;
         try {
             peers = service.getPeers();
@@ -1223,8 +1256,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         return Glyph.Kind.LAPTOP;
     }
 
+    /** The protocol that found this peer, named for a person rather than for a log. */
     private static String kindOf(BarqPeer p) {
-        return "airdrop";
+        return p.protocol == IBarqService.PROTOCOL_QUICKSHARE ? "Quick Share" : "AirDrop";
     }
 
     private void cancelActive() {

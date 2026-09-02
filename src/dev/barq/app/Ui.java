@@ -174,10 +174,27 @@ final class Ui {
         n.setEllipsize(android.text.TextUtils.TruncateAt.END);
         tile.addView(n);
 
-        TextView k = text(c, kind, 12, TEXT_FAINT, false);
-        k.setGravity(Gravity.CENTER);
-        tile.addView(k);
+        // A BADGE, not a caption. Which protocol reached a device is not decoration:
+        // an Apple device found over AirDrop cannot be sent to over Quick Share, so the
+        // protocol is part of what the person is choosing when they tap a tile. Faint
+        // grey text read as a subtitle nobody had to look at.
+        LinearLayout badgeRow = new LinearLayout(c);
+        badgeRow.setGravity(Gravity.CENTER);
+        badgeRow.setPadding(0, dp(c, 4), 0, 0);
+        badgeRow.addView(badge(c, kind));
+        tile.addView(badgeRow);
         return tile;
+    }
+
+    /** A small pill naming a protocol. */
+    static TextView badge(Context c, String label) {
+        TextView b = text(c, label, 10, TEXT_MUTED, true);
+        b.setAllCaps(true);
+        b.setLetterSpacing(0.06f);
+        int px = dp(c, 7), py = dp(c, 2);
+        b.setPadding(px, py, px, py);
+        b.setBackground(card(c, SURFACE_SUNK, RULE, 999));
+        return b;
     }
 
     static int dp(Context c, float v) {
