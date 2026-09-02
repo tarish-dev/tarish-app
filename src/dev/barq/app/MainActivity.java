@@ -29,6 +29,7 @@ import dev.barq.IBarqCallback;
 import dev.barq.IBarqService;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -1071,9 +1072,23 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // Everything the tiles are drawn FROM belongs in the signature, not just the
         // peers -- the gate below reads `shared`, so a selection change with an
         // unchanged peer list must still redraw.
-        StringBuilder sig = new StringBuilder(shared.isEmpty() ? "gated\n" : "live\n");
+        // Order-INSENSITIVE, because this compares a SET. Appending in array order made
+        // the signature depend on the order getPeers happened to return, which was a
+        // HashMap's -- random per call. So the gate never held: the tiles were torn down
+        // and rebuilt on every poll, peers juggled on screen, and a tile could be
+        // replaced between a finger going down and the tap landing.
+        //
+        // The daemon now sorts too. This stays sorted anyway: the gate is what protects
+        // the live views and their listeners, and it should not depend on a promise made
+        // by the other side of an IPC boundary.
+        List<String> rows = new ArrayList<>();
         for (BarqPeer p : peers) {
-            sig.append(p.id).append('|').append(p.name).append('\n');
+            rows.add(p.id + "|" + p.name);
+        }
+        Collections.sort(rows);
+        StringBuilder sig = new StringBuilder(shared.isEmpty() ? "gated\n" : "live\n");
+        for (String r : rows) {
+            sig.append(r).append('\n');
         }
         if (sig.toString().equals(peerSignature)) {
             return;   // nothing changed; leave the views (and their listeners) alone
