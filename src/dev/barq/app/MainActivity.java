@@ -69,6 +69,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private BottomNav nav;
     private LinearLayout content;
     private boolean sendMode;
+    /** User choice merged with managed configuration; pushed to the daemon on connect. */
+    private PolicyStore policyStore;
+    private dev.barq.BarqPolicy policy;
     private long activeTransfer;
 
     /**
@@ -317,6 +320,15 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         title.setLetterSpacing(-0.03f);
         title.setPadding(Ui.dp(this, 6), 0, 0, 0);
         mark.addView(title);
+
+        // Push the gear to the far right of the wordmark row.
+        View spacer = new View(this);
+        mark.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1f));
+        Glyph gear = new Glyph(this, Glyph.Kind.GEAR, Ui.TEXT_MUTED);
+        int g = Ui.dp(this, 26);
+        gear.setOnClickListener(v ->
+                startActivity(new android.content.Intent(this, SettingsActivity.class)));
+        mark.addView(gear, new LinearLayout.LayoutParams(g, g));
         column.addView(mark);
 
         content = new LinearLayout(this);
@@ -338,11 +350,50 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private void render() {
         content.removeAllViews();
         nav.setMode(sendMode);
+        View blocked = blockedNotice();
+        if (blocked != null) {
+            content.addView(blocked);
+        }
         if (sendMode) {
             buildSend();
         } else {
             buildReceive();
         }
+    }
+
+    /**
+     * Say when the direction being looked at is switched off, and by whom.
+     *
+     * Without this the screen is truthful and useless: no peers, nothing happening, no
+     * reason given. Naming the SOURCE matters as much as the fact -- "off in Settings" is
+     * something the person can act on, "set by your organization" is something they
+     * should stop trying to act on.
+     */
+    private View blockedNotice() {
+        if (policy == null) {
+            return null;
+        }
+        boolean allowed = sendMode
+                ? PolicyStore.allowsSend(policy.airdrop)
+                : PolicyStore.allowsReceive(policy.airdrop);
+        if (allowed) {
+            return null;
+        }
+        String what = sendMode ? "Sending" : "Receiving";
+        String why = policy.airdropManaged
+                ? what + " is turned off by your organization."
+                : what + " is turned off. Turn it on in Settings.";
+
+        LinearLayout card = Ui.cardBox(this);
+        TextView t = Ui.text(this, why, 13, Ui.ACCENT, false);
+        int q = Ui.dp(this, 12);
+        t.setPadding(q, q, q, q);
+        card.addView(t);
+        if (!policy.airdropManaged) {
+            card.setOnClickListener(v ->
+                    startActivity(new android.content.Intent(this, SettingsActivity.class)));
+        }
+        return card;
     }
 
     private void buildReceive() {
@@ -737,6 +788,22 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      *
      * @return true if a usable binding exists afterwards
      */
+    /** Re-read policy from preferences and managed configuration, and send it down. */
+    private void pushPolicy() {
+        if (policyStore == null) {
+            policyStore = new PolicyStore(this);
+        }
+        policy = policyStore.effective();
+        if (service == null) {
+            return;
+        }
+        try {
+            service.setPolicy(policy);
+        } catch (Exception e) {
+            Log.w(TAG, "could not push policy", e);
+        }
+    }
+
     private boolean connect() {
         IBinder binder = ServiceManager.getService(SERVICE_NAME);
         if (binder == null) {
@@ -747,6 +814,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         service = IBarqService.Stub.asInterface(binder);
         try {
             service.registerCallback(callback);
+            // The daemon starts DENIED and holds policy in memory, so it must be told
+            // before anything else is asked of it -- including by a daemon that has just
+            // restarted underneath us. Pushed on every connect rather than on change.
+            pushPolicy();
             // Notice the daemon going away, rather than finding out on the next call
             // and treating it as an ordinary failure.
             binder.linkToDeath(deathRecipient, 0);
@@ -802,6 +873,11 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         main.removeCallbacks(restoreRadios);
         promptForRadiosIfNeeded();
         setActive(true);
+        // Re-read policy before acting on it: the user may have just come back from the
+        // settings screen, or an administrator may have changed a managed value while
+        // this activity was stopped. Both must take effect before we ask to be visible.
+        pushPolicy();
+        render();
         setDiscoverable(!sendMode, "onResume");
         main.post(poll);
         if (!sendMode) {
@@ -913,6 +989,14 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     private void setDiscoverable(boolean visible, String why) {
+        // Do not ask for something policy forbids. The daemon would refuse anyway --
+        // it is the enforcement point -- but a refusal here looks like a dead binder to
+        // the caller below and triggers a pointless rebind. Turning visibility OFF is
+        // never gated: policy restricts sharing, never the ability to stop.
+        if (visible && policy != null && !PolicyStore.allowsReceive(policy.airdrop)) {
+            Log.i(TAG, "setDiscoverable(true) skipped from " + why + " — policy denies receive");
+            return;
+        }
         Log.i(TAG, "setDiscoverable(" + visible + ") from " + why + " sendMode=" + sendMode);
         if (service == null) {
             setIdentityState("barq service unavailable", false);

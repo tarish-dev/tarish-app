@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Managed configuration — the MDM control surface.
+
+  Android's app restrictions are part of AOSP, so every MDM (Intune, Workspace ONE,
+  SOTI, MobileIron, Jamf) can set these: they are all calling the same platform API.
+  One implementation covers all of them, which is why there is no vendor-specific
+  integration here and should not be one.
+
+  Set by a device owner or profile owner. On a device with nothing enrolled there is no
+  DPC, nothing sets them, and the defaults below apply — which is the correct outcome
+  for a personal device, not a gap.
+
+  Per protocol and per direction, expressed as a CHOICE rather than a pair of booleans:
+  a choice renders as one dropdown in an admin console, whereas two booleans per
+  protocol invite the combination that means nothing and double the surface. The app
+  still draws two switches, because per direction is how a person thinks about it.
+-->
+<restrictions xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <restriction
+        android:key="airdrop"
+        android:title="@string/policy_airdrop_title"
+        android:description="@string/policy_airdrop_desc"
+        android:restrictionType="choice"
+        android:entries="@array/barq_mode_entries"
+        android:entryValues="@array/barq_mode_values"
+        android:defaultValue="both" />
+
+    <restriction
+        android:key="quickshare"
+        android:title="@string/policy_quickshare_title"
+        android:description="@string/policy_quickshare_desc"
+        android:restrictionType="choice"
+        android:entries="@array/barq_mode_entries"
+        android:entryValues="@array/barq_mode_values"
+        android:defaultValue="both" />
+
+    <!--
+      Defaults TRUE, and an administrator turning it off is turning off the per-transfer
+      accept prompt. That is theirs to decide, but the default is the safe one.
+    -->
+    <restriction
+        android:key="require_confirmation"
+        android:title="@string/policy_confirm_title"
+        android:description="@string/policy_confirm_desc"
+        android:restrictionType="bool"
+        android:defaultValue="true" />
+
+    <!--
+      Empty means the user picks the name. Setting it pins the name and the settings
+      screen shows the field as managed.
+    -->
+    <restriction
+        android:key="device_name"
+        android:title="@string/policy_name_title"
+        android:description="@string/policy_name_desc"
+        android:restrictionType="string"
+        android:defaultValue="" />
+
+</restrictions>

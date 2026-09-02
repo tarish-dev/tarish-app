@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Choice lists for the managed-configuration schema.
+
+  The VALUES are contract: an administrator's console stores whichever string it was
+  given, so renaming one silently changes what an existing deployment means. Add new
+  values, never rename these four.
+-->
+<resources>
+    <string-array name="barq_mode_entries">
+        <item>Off</item>
+        <item>Receive only</item>
+        <item>Send only</item>
+        <item>Send and receive</item>
+    </string-array>
+    <string-array name="barq_mode_values" translatable="false">
+        <item>off</item>
+        <item>receive_only</item>
+        <item>send_only</item>
+        <item>both</item>
+    </string-array>
+</resources>

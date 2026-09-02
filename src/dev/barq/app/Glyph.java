@@ -19,7 +19,7 @@ import android.view.View;
  */
 final class Glyph extends View {
 
-    enum Kind { BOLT, SWAP, DOWNLOAD, UPLOAD, LAPTOP, CHECK }
+    enum Kind { BOLT, SWAP, DOWNLOAD, UPLOAD, LAPTOP, CHECK, GEAR }
 
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -58,6 +58,26 @@ final class Glyph extends View {
             case UPLOAD: arrow(canvas, cx, cy, s, false); break;
             case LAPTOP: laptop(canvas, cx, cy, s); break;
             case CHECK: check(canvas, cx, cy, s); break;
+            case GEAR: gear(canvas, cx, cy, s); break;
+        }
+    }
+
+    /**
+     * A ring with eight teeth and a hollow centre.
+     *
+     * Teeth are drawn as short radial strokes rather than as a toothed path: at the
+     * ~22dp this is shown at, a filled cog turns into a blob, whereas strokes stay
+     * legible and match the weight of every other glyph here.
+     */
+    private void gear(Canvas c, float cx, float cy, float s) {
+        float r = s * 0.20f;
+        c.drawCircle(cx, cy, r, stroke);
+        float inner = r * 1.15f, outer = r * 1.55f;
+        for (int i = 0; i < 8; i++) {
+            double a = Math.PI * i / 4.0;
+            float dx = (float) Math.cos(a), dy = (float) Math.sin(a);
+            c.drawLine(cx + dx * inner, cy + dy * inner,
+                       cx + dx * outer, cy + dy * outer, stroke);
         }
     }
 

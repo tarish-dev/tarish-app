@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Titles and descriptions for the managed-configuration schema.
+
+  These are not internal strings: an MDM console renders them to the administrator
+  configuring the device, so they are the only explanation that person gets. Written for
+  someone who has never seen this app and is deciding what to permit.
+
+  They must be resource references rather than literals — aapt2 rejects a literal for
+  android:description on a <restriction>.
+-->
+<resources>
+    <string name="policy_airdrop_title">AirDrop (Apple devices)</string>
+    <string name="policy_airdrop_desc">Whether this device may share with Apple devices, and in which direction.</string>
+
+    <string name="policy_quickshare_title">Quick Share (Android and Windows)</string>
+    <string name="policy_quickshare_desc">Whether this device may share with Android and Windows devices, and in which direction.</string>
+
+    <string name="policy_confirm_title">Ask before accepting a transfer</string>
+    <string name="policy_confirm_desc">Show a prompt for every incoming transfer. Turning this off accepts files silently.</string>
+
+    <string name="policy_name_title">Device name</string>
+    <string name="policy_name_desc">The name other devices see. Leave empty to let the user choose.</string>
+</resources>

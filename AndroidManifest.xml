@@ -95,6 +95,22 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="Barq settings"
+            android:parentActivityName=".MainActivity" />
+
+        <!--
+          The managed-configuration schema. An MDM reads this to render its console, so
+          the app is configurable by Intune, Workspace ONE, SOTI, MobileIron and Jamf
+          alike without any vendor-specific integration: they are all setting the same
+          AOSP app restrictions.
+        -->
+        <meta-data
+            android:name="android.content.APP_RESTRICTIONS"
+            android:resource="@xml/app_restrictions" />
+
         <service
             android:name=".BarqBleService"
             android:exported="false" />
