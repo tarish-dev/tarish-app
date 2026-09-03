@@ -40,6 +40,9 @@ public final class SettingsActivity extends Activity {
     /** The daemon publishes itself here; it is not a bound service. */
     private static final String SERVICE_NAME = "dev.barq.IBarqService/default";
 
+    /** What is in the name field right now, committed on focus loss or onPause. */
+    private String typedName;
+
     private PolicyStore store;
     private IBarqService service;
     private BarqPolicy policy;
@@ -74,6 +77,46 @@ public final class SettingsActivity extends Activity {
         setContentView(scroll);
 
         render();
+    }
+
+    /** The name peers actually see, as the daemon resolves it. */
+    private String effectiveName() {
+        if (service != null) {
+            try {
+                String n = service.getDeviceName();
+                if (n != null && !n.isEmpty()) {
+                    return n;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "could not read the device name", e);
+            }
+        }
+        return "This device";
+    }
+
+    /** Write the typed name, if it changed. Safe to call repeatedly. */
+    private void commitName() {
+        if (typedName == null || policy.deviceNameManaged) {
+            return;
+        }
+        String wanted = typedName.trim();
+        if (wanted.equals(policy.deviceName)) {
+            return;
+        }
+        policy.deviceName = wanted;
+        store.setUserDeviceName(wanted);
+        push();
+        // Re-read: clearing the field falls back to the model, and the hint should say
+        // so rather than keep showing the name that was just removed.
+        if (nameField != null) {
+            nameField.setHint(effectiveName());
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        commitName();
     }
 
     @Override
@@ -111,7 +154,11 @@ public final class SettingsActivity extends Activity {
         LinearLayout nameCard = Ui.cardBox(this);
         nameField = new EditText(this);
         nameField.setText(policy.deviceName);
-        nameField.setHint("This device");
+        // The HINT is the name actually in use, so an empty field means "using the
+        // device model" instead of looking like the setting is broken. Asking the daemon
+        // rather than guessing: it resolves persist.barq.name, then ro.product.model,
+        // then a constant, and only it knows which one won.
+        nameField.setHint(effectiveName());
         nameField.setSingleLine(true);
         nameField.setTextColor(Ui.TEXT);
         nameField.setHintTextColor(Ui.TEXT_FAINT);
@@ -120,17 +167,21 @@ public final class SettingsActivity extends Activity {
         if (policy.deviceNameManaged) {
             nameField.setTextColor(Ui.TEXT_MUTED);
         }
+        // NOT on every keystroke. The name lives in a `persist.` property, which is
+        // written to disk, so pushing per character meant a disk write per character and
+        // an mDNS identity that changed under a peer mid-word. Typing is tracked in
+        // memory and committed when the field loses focus or the screen goes away.
         nameField.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
             @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
             @Override
             public void afterTextChanged(Editable e) {
-                if (policy.deviceNameManaged) {
-                    return;
-                }
-                store.setUserDeviceName(e.toString());
-                policy.deviceName = e.toString().trim();
-                push();
+                typedName = e.toString();
+            }
+        });
+        nameField.setOnFocusChangeListener((v, focused) -> {
+            if (!focused) {
+                commitName();
             }
         });
         nameCard.addView(nameField);
