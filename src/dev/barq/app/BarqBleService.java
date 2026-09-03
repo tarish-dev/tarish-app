@@ -46,6 +46,16 @@ public final class BarqBleService extends Service {
     private BluetoothLeAdvertiser advertiser;
     private BluetoothLeScanner scanner;
 
+    /**
+     * Quick Share's assigned 16-bit service, in the 128-bit form a scan filter takes.
+     */
+    private static final android.os.ParcelUuid QUICK_SHARE_SERVICE =
+            android.os.ParcelUuid.fromString("0000fe2c-0000-1000-8000-00805f9b34fb");
+
+    /** kFastInitModelId — the magic that marks a pulse as Quick Share. */
+    private static final byte[] QUICK_SHARE_MODEL_ID =
+            new byte[] { (byte) 0xFC, (byte) 0x12, (byte) 0x8E };
+
     /** True between a successful startAdvertising and the matching stop. */
     private boolean advertising;
 
@@ -110,6 +120,53 @@ public final class BarqBleService extends Service {
             if (AirDropBeacon.isAirDrop(data)) {
                 Log.i(TAG, "AirDrop beacon from " + result.getDevice().getAddress()
                         + " rssi=" + result.getRssi());
+            }
+
+            if (android.os.SystemProperties.getBoolean("persist.barq.ble_debug", false)) {
+                android.bluetooth.le.ScanRecord rec = result.getScanRecord();
+                StringBuilder svc = new StringBuilder();
+                if (rec.getServiceData() != null) {
+                    for (android.os.ParcelUuid u : rec.getServiceData().keySet()) {
+                        byte[] v = rec.getServiceData().get(u);
+                        svc.append(' ').append(u.getUuid().toString().substring(4, 8))
+                           .append('=');
+                        // The WHOLE payload, not a prefix. These advertisements are
+                        // ~20 bytes and the identifying fields are not all at the front:
+                        // a Nearby Connections advertisement carries its service-id hash
+                        // after the version byte, and the endpoint info after that.
+                        // Logging three bytes told us something was there and nothing
+                        // about what.
+                        if (v == null) {
+                            svc.append("null");
+                        } else {
+                            for (byte b : v) {
+                                svc.append(String.format("%02x", b));
+                            }
+                        }
+                    }
+                }
+                Log.i(TAG, "BLE " + result.getDevice().getAddress()
+                        + " rssi=" + result.getRssi()
+                        + " name=" + rec.getDeviceName()
+                        + " svc:" + (svc.length() == 0 ? " none" : svc));
+            }
+
+            // A Quick Share share-intent pulse. Logged in full, because these bytes are
+            // the only way to check our own encoder against a real stock sender -- the
+            // metadata byte and the secret_id_hash both fail silently when wrong, and a
+            // capture from a device that is not ours is the only thing that settles it.
+            byte[] qs = result.getScanRecord().getServiceData(QUICK_SHARE_SERVICE);
+            if (qs != null && qs.length >= 14) {
+                StringBuilder hex = new StringBuilder(qs.length * 2);
+                for (byte b : qs) {
+                    hex.append(String.format("%02x", b));
+                }
+                Log.i(TAG, "QuickShare pulse from " + result.getDevice().getAddress()
+                        + " rssi=" + result.getRssi()
+                        + " len=" + qs.length
+                        + " metadata=0x" + String.format("%02x", qs[3])
+                        + " txpower=0x" + String.format("%02x", qs[4])
+                        + " data=" + hex);
             }
         }
 
@@ -192,6 +249,18 @@ public final class BarqBleService extends Service {
             Log.w(TAG, "no LE scanner available");
             return;
         }
+        // STOP FIRST. onStartCommand re-asserts on every start, and startScan against an
+        // already-running scan fails with SCAN_FAILED_ALREADY_STARTED -- leaving the
+        // PREVIOUS filter set in place. That is silent: scanning carries on, so nothing
+        // looks broken, but a filter added since the first start never takes effect.
+        // Found exactly that way, adding the Quick Share filter and seeing no pulses.
+        try {
+            scanner.stopScan(scanCallback);
+        } catch (Exception e) {
+            // Not started, or Bluetooth went away underneath us. Either way the start
+            // below is what matters.
+            Log.d(TAG, "stopScan before restart: " + e.getMessage());
+        }
         // Filter in the controller rather than in Java: an unfiltered scan wakes this
         // process for every beacon in range, which on a phone is constant.
         List<ScanFilter> filters = new ArrayList<>();
@@ -201,10 +270,33 @@ public final class BarqBleService extends Service {
                         new byte[] { (byte) 0xFF })
                 .build());
 
+        // Quick Share's FastInitiation pulse. Matched on the three-byte model id rather
+        // than on the service UUID alone: the UUID appears in plenty of advertisements
+        // that are not a share intent, and this scan runs whenever the app is open.
+        filters.add(new ScanFilter.Builder()
+                .setServiceData(QUICK_SHARE_SERVICE,
+                        QUICK_SHARE_MODEL_ID,
+                        new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF })
+                .build());
+
         ScanSettings settings = new ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                 .build();
 
+        // DIAGNOSTIC MODE: setprop persist.barq.ble_debug 1
+        //
+        // Scans unfiltered and logs every advertisement. Off by default because an
+        // unfiltered scan wakes this process for every beacon in range, which on a phone
+        // is constant and expensive.
+        //
+        // It exists because a filtered scan that finds nothing is AMBIGUOUS: the filter
+        // could be wrong, the peer could be silent, or the scan could not be running at
+        // all, and those look identical from the log. This tells them apart.
+        if (android.os.SystemProperties.getBoolean("persist.barq.ble_debug", false)) {
+            Log.w(TAG, "BLE DEBUG: scanning unfiltered");
+            scanner.startScan(new ArrayList<>(), settings, scanCallback);
+            return;
+        }
         scanner.startScan(filters, settings, scanCallback);
     }
 
