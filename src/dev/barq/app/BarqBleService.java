@@ -279,9 +279,29 @@ public final class BarqBleService extends Service {
                         new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF })
                 .build());
 
-        ScanSettings settings = new ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                .build();
+        // SCAN EXTENDED ADVERTISEMENTS TOO, not just legacy.
+        //
+        // setLegacy defaults to TRUE, which reports only the old 31-byte advertising
+        // PDUs and silently drops everything sent with BLE 5 extended advertising. A
+        // device using it is then completely invisible -- no error, no callback, nothing
+        // to notice -- while being plainly discoverable to any other scanner.
+        //
+        // Found because a Windows machine that a stock Android phone could see did not
+        // appear here at all, while its idle Nearby chatter did. Idle beacons are legacy;
+        // the endpoint advertisement is not.
+        ScanSettings.Builder builder = new ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY);
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+        if (adapter != null && adapter.isLeExtendedAdvertisingSupported()) {
+            builder.setLegacy(false)
+                   .setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED);
+            Log.i(TAG, "scanning legacy + extended advertisements");
+        } else {
+            // Older controllers reject setLegacy(false) outright, so only ask where the
+            // hardware says it can.
+            Log.i(TAG, "controller is legacy-only; scanning legacy advertisements");
+        }
+        ScanSettings settings = builder.build();
 
         // DIAGNOSTIC MODE: setprop persist.barq.ble_debug 1
         //
