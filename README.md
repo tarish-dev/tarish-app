@@ -1,7 +1,26 @@
 # Barq (app)
 
-The Android client for [`barqd`](../barq-daemon) — share sheet, transfer UI,
-settings, Quick Settings tile.
+The Android half of [Barq](https://github.com/bodaay/barq-daemon) — **AirDrop and Quick
+Share on Android with no Google Play Services and no Google account**.
+
+This repo is the part you can see: the share sheet, the transfer prompt, settings, and the
+Bluetooth radio work. The protocol and the transport live in the daemon.
+
+## What the app does, and what the daemon does
+
+The split is not arbitrary and it is worth understanding before reading either repo.
+
+| | where | why |
+|---|---|---|
+| BLE advertising and scanning | **app** | a native daemon cannot reach framework Bluetooth |
+| Bluetooth connection to a peer | **app** | same reason; the socket is handed to the daemon |
+| Share sheet, transfer prompt, settings | **app** | it is a UI |
+| Holding the AWDL link | daemon | needs `CAP_NET_ADMIN`, and must outlive the UI |
+| mDNS, TLS, AirDrop protocol | daemon | parses input from strangers, so it holds nothing else |
+| Quick Share protocol — UKEY2 onwards | daemon | tested against captured traffic, and Rust |
+
+Everything in the app is there because the framework will not let a native service do it.
+Nothing is there for convenience.
 
 ## Why this is thin, and stays thin
 
@@ -65,8 +84,8 @@ The IPC contract is owned by the daemon and consumed from there, so the two
 cannot drift:
 
 ```
-../barq-daemon/aidl/dev/barq/IBarqService.aidl
-../barq-daemon/aidl/dev/barq/IBarqCallback.aidl
+barq-daemon/aidl/dev/barq/IBarqService.aidl
+barq-daemon/aidl/dev/barq/IBarqCallback.aidl
 ```
 
 `IBarqCallback` is `oneway` throughout — the daemon must never block on a UI

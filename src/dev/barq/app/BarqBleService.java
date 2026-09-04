@@ -286,6 +286,12 @@ public final class BarqBleService extends Service {
                 barqService = b == null ? null : dev.barq.IBarqService.Stub.asInterface(b);
             }
             if (barqService == null) {
+                // Was a silent return, which made a missing daemon indistinguishable
+                // from a peer that was never seen -- the peer list stayed empty and
+                // nothing anywhere said why. Rate-limited by the same clock as the
+                // reports so a dead daemon does not become its own flood.
+                lastReported.put(address, now);
+                Log.w(TAG, "cannot report peers: " + SERVICE_NAME + " is not published");
                 return;
             }
             barqService.reportBlePeer(address, rssi, serviceData);
@@ -335,13 +341,19 @@ public final class BarqBleService extends Service {
 
         // Quick Share ENDPOINT advertisements, on Nearby Connections' service.
         //
-        // This is the one that finds peers. The filter is the service UUID alone rather
-        // than a data prefix: the same service carries several Nearby services and the
-        // NearbySharing hash does not sit at a fixed offset -- in a captured Windows
-        // advertisement it appears twice. Sorting that out is the daemon's job, which
-        // has the decoder and its test vectors.
+        // setServiceDATA, not setServiceUuid. They sound interchangeable and are not:
+        // setServiceUuid matches the Service UUID AD types (0x02..0x07), while Quick
+        // Share advertises service DATA (0x16). ScanRecord.getServiceUuids() does not
+        // parse service data, so a UUID filter never matches and the callback simply
+        // never fires -- no error, no hint, an empty peer list. It looked exactly like a
+        // peer that was not advertising, while an unfiltered debug scan saw it 1,638
+        // times in 25 seconds.
+        //
+        // An empty pattern and mask match any service data for the UUID. Which of those
+        // advertisements is actually Quick Share is the daemon's decision: it has the
+        // decoder and its captured test vectors.
         filters.add(new ScanFilter.Builder()
-                .setServiceUuid(NEARBY_SERVICE)
+                .setServiceData(NEARBY_SERVICE, new byte[0], new byte[0])
                 .build());
 
         // SCAN EXTENDED ADVERTISEMENTS TOO, not just legacy.
