@@ -1314,6 +1314,34 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
         showProgress("Starting…", 0f);
         try {
+            if (peer.protocol == IBarqService.PROTOCOL_QUICKSHARE) {
+                // Quick Share needs a connection this process opens. The daemon cannot
+                // reach framework Bluetooth, so it cannot dial a peer itself -- it runs
+                // the protocol on a socket we hand it. Done off the UI thread because
+                // an RFCOMM connect blocks, and against an absent peer it blocks for
+                // seconds.
+                final ParcelFileDescriptor[] toSend = fds.toArray(new ParcelFileDescriptor[0]);
+                final String[] toName = names.toArray(new String[0]);
+                final IBarqService svc = service;
+                new Thread(() -> {
+                    long id = QuickShareSender.send(svc, peer, toSend, toName);
+                    main.post(() -> {
+                        if (id == 0) {
+                            showProgress("Could not reach " + peer.name, 0f);
+                        } else {
+                            activeTransfer = id;
+                        }
+                    });
+                    for (ParcelFileDescriptor pfd : toSend) {
+                        try {
+                            pfd.close();
+                        } catch (Exception ignored) {
+                            // Sent or failed; nothing useful to do.
+                        }
+                    }
+                }, "barq-qs-send").start();
+                return;
+            }
             activeTransfer = service.sendFiles(peer.id,
                     fds.toArray(new ParcelFileDescriptor[0]),
                     names.toArray(new String[0]));
