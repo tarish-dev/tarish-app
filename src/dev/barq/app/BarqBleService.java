@@ -52,6 +52,10 @@ public final class BarqBleService extends Service {
     private static final android.os.ParcelUuid QUICK_SHARE_SERVICE =
             android.os.ParcelUuid.fromString("0000fe2c-0000-1000-8000-00805f9b34fb");
 
+    /** Nearby Connections' service, where Quick Share advertises its endpoints. */
+    private static final android.os.ParcelUuid NEARBY_SERVICE =
+            android.os.ParcelUuid.fromString("0000fef3-0000-1000-8000-00805f9b34fb");
+
     /** kFastInitModelId — the magic that marks a pulse as Quick Share. */
     private static final byte[] QUICK_SHARE_MODEL_ID =
             new byte[] { (byte) 0xFC, (byte) 0x12, (byte) 0x8E };
@@ -151,6 +155,15 @@ public final class BarqBleService extends Service {
                         + " svc:" + (svc.length() == 0 ? " none" : svc));
             }
 
+            // Hand any Nearby advertisement to the daemon. It decides whether it is
+            // Quick Share and whether it is a peer -- the decoder lives there, built
+            // against captured traffic, and reimplementing it here would be a second
+            // thing to get wrong.
+            byte[] nearby = result.getScanRecord().getServiceData(NEARBY_SERVICE);
+            if (nearby != null && nearby.length > 8) {
+                reportBlePeer(result.getDevice().getAddress(), result.getRssi(), nearby);
+            }
+
             // A Quick Share share-intent pulse. Logged in full, because these bytes are
             // the only way to check our own encoder against a real stock sender -- the
             // metadata byte and the secret_id_hash both fail silently when wrong, and a
@@ -244,6 +257,47 @@ public final class BarqBleService extends Service {
         advertiser.startAdvertising(settings, data, advertiseCallback);
     }
 
+    /** The daemon's service name; the same one MainActivity uses. */
+    private static final String SERVICE_NAME = "dev.barq.IBarqService/default";
+
+    /**
+     * Do not report the same peer more often than this.
+     *
+     * Peers advertise several times a second and there can be a dozen of them, so
+     * forwarding every sighting would be hundreds of binder calls a minute to say
+     * nothing new. The daemon expires a peer after 20s, so re-reporting every 5 keeps it
+     * present with a wide margin.
+     */
+    private static final long REPORT_EVERY_MS = 5000;
+
+    private final java.util.Map<String, Long> lastReported = new java.util.HashMap<>();
+    private dev.barq.IBarqService barqService;
+
+    /** Hand one Nearby advertisement to the daemon, which owns the decoder. */
+    private void reportBlePeer(String address, int rssi, byte[] serviceData) {
+        long now = android.os.SystemClock.elapsedRealtime();
+        Long last = lastReported.get(address);
+        if (last != null && now - last < REPORT_EVERY_MS) {
+            return;
+        }
+        try {
+            if (barqService == null) {
+                android.os.IBinder b = android.os.ServiceManager.getService(SERVICE_NAME);
+                barqService = b == null ? null : dev.barq.IBarqService.Stub.asInterface(b);
+            }
+            if (barqService == null) {
+                return;
+            }
+            barqService.reportBlePeer(address, rssi, serviceData);
+            lastReported.put(address, now);
+        } catch (Exception e) {
+            // A dead proxy after a daemon restart. Drop it so the next sighting looks it
+            // up again rather than failing forever against a binder that has gone.
+            Log.d(TAG, "reportBlePeer failed, will rebind: " + e.getMessage());
+            barqService = null;
+        }
+    }
+
     private void startScanning() {
         if (scanner == null) {
             Log.w(TAG, "no LE scanner available");
@@ -277,6 +331,17 @@ public final class BarqBleService extends Service {
                 .setServiceData(QUICK_SHARE_SERVICE,
                         QUICK_SHARE_MODEL_ID,
                         new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF })
+                .build());
+
+        // Quick Share ENDPOINT advertisements, on Nearby Connections' service.
+        //
+        // This is the one that finds peers. The filter is the service UUID alone rather
+        // than a data prefix: the same service carries several Nearby services and the
+        // NearbySharing hash does not sit at a fixed offset -- in a captured Windows
+        // advertisement it appears twice. Sorting that out is the daemon's job, which
+        // has the decoder and its test vectors.
+        filters.add(new ScanFilter.Builder()
+                .setServiceUuid(NEARBY_SERVICE)
                 .build());
 
         // SCAN EXTENDED ADVERTISEMENTS TOO, not just legacy.
