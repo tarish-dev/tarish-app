@@ -142,10 +142,31 @@ final class QuickShareSender {
      * directions, until either side closes.
      */
     private static void pump(BluetoothSocket socket, ParcelFileDescriptor local) {
-        ParcelFileDescriptor.AutoCloseInputStream fromDaemon =
-                new ParcelFileDescriptor.AutoCloseInputStream(local);
-        ParcelFileDescriptor.AutoCloseOutputStream toDaemon =
-                new ParcelFileDescriptor.AutoCloseOutputStream(local);
+        // ONE descriptor, TWO plain streams -- not two AutoClose streams.
+        //
+        // AutoCloseInputStream and AutoCloseOutputStream built from the same
+        // ParcelFileDescriptor share its fd, so whichever thread finished first closed it
+        // under the other. That surfaced as "read interrupted by close() on another
+        // thread" in the middle of a handshake, and made the whole transfer look flaky:
+        // sometimes it died instantly, sometimes after the encrypted channel was up.
+        //
+        // Plain streams over the descriptor do not close it. The pair is closed once,
+        // below, when both directions have finished.
+        final java.io.FileInputStream fromDaemon =
+                new java.io.FileInputStream(local.getFileDescriptor());
+        final java.io.FileOutputStream toDaemon =
+                new java.io.FileOutputStream(local.getFileDescriptor());
+
+        // Closed only when BOTH directions are done, so neither can pull the socket out
+        // from under the other.
+        final java.util.concurrent.atomic.AtomicInteger running =
+                new java.util.concurrent.atomic.AtomicInteger(2);
+        final Runnable finished = () -> {
+            if (running.decrementAndGet() == 0) {
+                closeQuietly(socket);
+                closeQuietly(local);
+            }
+        };
 
         new Thread(() -> {
             try {
@@ -153,7 +174,7 @@ final class QuickShareSender {
             } catch (Exception e) {
                 Log.d(TAG, "peer -> daemon ended: " + e.getMessage());
             } finally {
-                closeQuietly(socket);
+                finished.run();
             }
         }, "barq-qs-in").start();
 
@@ -163,7 +184,7 @@ final class QuickShareSender {
             } catch (Exception e) {
                 Log.d(TAG, "daemon -> peer ended: " + e.getMessage());
             } finally {
-                closeQuietly(socket);
+                finished.run();
             }
         }, "barq-qs-out").start();
     }

@@ -354,6 +354,16 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private void render() {
         content.removeAllViews();
         nav.setMode(sendMode);
+        // NO DAEMON, NO APP. Say so, rather than showing an empty device list.
+        //
+        // Without this the screen is truthful and useless: no peers, not discoverable,
+        // no error -- indistinguishable from nobody being nearby. The app is the visible
+        // half of something that mostly is not an app, and when the other half is absent
+        // that is the only thing worth saying.
+        if (service == null) {
+            content.addView(buildNoDaemonCard());
+            return;
+        }
         View blocked = blockedNotice();
         if (blocked != null) {
             content.addView(blocked);
@@ -363,6 +373,38 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         } else {
             buildReceive();
         }
+    }
+
+    /** Shown when the daemon is not on this device. */
+    private LinearLayout buildNoDaemonCard() {
+        LinearLayout card = Ui.cardBox(this);
+        int p = Ui.dp(this, 16);
+        card.setPadding(p, p, p, p);
+
+        card.addView(Ui.text(this, "Barq is not installed on this device", 17, Ui.TEXT, true));
+
+        TextView why = Ui.text(this,
+                "This app is the visible half of Barq. The other half is a system service "
+                        + "that holds the radio and speaks the protocols, and it has to be "
+                        + "part of the operating system \u2014 it needs privileges no app can "
+                        + "grant itself.\n\n"
+                        + "Installing this app on its own cannot work, and nothing here will "
+                        + "find a device.",
+                13, Ui.TEXT_MUTED, false);
+        why.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 10));
+        card.addView(why);
+
+        card.addView(Ui.text(this,
+                "github.com/bodaay/barq-daemon",
+                12, Ui.ACCENT, false));
+
+        TextView how = Ui.text(this,
+                "That repository has the integration guide, including the one platform "
+                        + "patch it needs.",
+                11, Ui.TEXT_FAINT, false);
+        how.setPadding(0, Ui.dp(this, 6), 0, 0);
+        card.addView(how);
+        return card;
     }
 
     /**
@@ -1313,35 +1355,46 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             return;
         }
         showProgress("Starting…", 0f);
-        try {
-            if (peer.protocol == IBarqService.PROTOCOL_QUICKSHARE) {
-                // Quick Share needs a connection this process opens. The daemon cannot
-                // reach framework Bluetooth, so it cannot dial a peer itself -- it runs
-                // the protocol on a socket we hand it. Done off the UI thread because
-                // an RFCOMM connect blocks, and against an absent peer it blocks for
-                // seconds.
-                final ParcelFileDescriptor[] toSend = fds.toArray(new ParcelFileDescriptor[0]);
-                final String[] toName = names.toArray(new String[0]);
-                final IBarqService svc = service;
-                new Thread(() -> {
-                    long id = QuickShareSender.send(svc, peer, toSend, toName);
-                    main.post(() -> {
-                        if (id == 0) {
-                            showProgress("Could not reach " + peer.name, 0f);
-                        } else {
-                            activeTransfer = id;
-                        }
-                    });
-                    for (ParcelFileDescriptor pfd : toSend) {
-                        try {
-                            pfd.close();
-                        } catch (Exception ignored) {
-                            // Sent or failed; nothing useful to do.
-                        }
+
+        // QUICK SHARE IS HANDLED BEFORE THE try/finally BELOW, NOT INSIDE IT.
+        //
+        // That block closes the descriptors in `finally`, and `finally` runs on `return`
+        // -- so branching to a background thread from inside it closed every fd the
+        // instant the thread started using them. The daemon reported "Bad file
+        // descriptor" from writeToParcel, after the Bluetooth connection had already
+        // succeeded, which reads like a transport failure and is not one.
+        //
+        // The sending thread owns these descriptors and closes them itself.
+        if (peer.protocol == IBarqService.PROTOCOL_QUICKSHARE) {
+            // Quick Share needs a connection this process opens. The daemon cannot
+            // reach framework Bluetooth, so it cannot dial a peer itself -- it runs
+            // the protocol on a socket we hand it. Done off the UI thread because
+            // an RFCOMM connect blocks, and against an absent peer it blocks for
+            // seconds.
+            final ParcelFileDescriptor[] toSend = fds.toArray(new ParcelFileDescriptor[0]);
+            final String[] toName = names.toArray(new String[0]);
+            final IBarqService svc = service;
+            new Thread(() -> {
+                long id = QuickShareSender.send(svc, peer, toSend, toName);
+                main.post(() -> {
+                    if (id == 0) {
+                        showProgress("Could not reach " + peer.name, 0f);
+                    } else {
+                        activeTransfer = id;
                     }
-                }, "barq-qs-send").start();
-                return;
-            }
+                });
+                for (ParcelFileDescriptor pfd : toSend) {
+                    try {
+                        pfd.close();
+                    } catch (Exception ignored) {
+                        // Sent or failed; nothing useful to do.
+                    }
+                }
+            }, "barq-qs-send").start();
+            return;
+        }
+
+        try {
             activeTransfer = service.sendFiles(peer.id,
                     fds.toArray(new ParcelFileDescriptor[0]),
                     names.toArray(new String[0]));
