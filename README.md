@@ -111,3 +111,13 @@ be visible.
 `setActive` is deliberately separate from `setDiscoverable`: it governs the AWDL
 radio, and a client that is *sending* is not discoverable while needing the link
 more than ever.
+
+## Credits
+
+**[Bada](https://github.com/kyujin-cho/Bada)**, Apache 2.0, is the working Quick Share
+implementation this project learned the protocol from. See
+[docs/CREDITS.md](docs/CREDITS.md) for what came from where.
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).

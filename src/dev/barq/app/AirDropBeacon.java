@@ -35,7 +35,7 @@ import java.security.NoSuchAlgorithmException;
  * happens later over TLS.
  *
  * <p><b>Provenance.</b> This layout is not from a specification; Apple publishes none.
- * It was reverse-engineered by the operator against real Apple devices in GoOpenDrop,
+ * It was reverse-engineered by the author against real Apple devices in GoOpenDrop,
  * and is reimplemented here from that description rather than copied. Credit is
  * recorded in docs/CREDITS.md.
  */

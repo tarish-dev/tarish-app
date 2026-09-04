@@ -59,7 +59,7 @@ A Go implementation of the AirDrop protocol layer, referenced for the plist
 dialect, cpio framing and the HTTPS exchange.
 
 
-## GoOpenDrop — the operator
+## GoOpenDrop — the author
 
 An earlier from-scratch AirDrop implementation in Go, including its BLE layer.
 

@@ -1,0 +1,32 @@
+Barq
+Copyright 2026 Barq contributors
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License. You may obtain a copy of the
+License in the LICENSE file distributed with this work, or at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes software developed from Bada
+(https://github.com/kyujin-cho/Bada), Copyright 2026 Bada contributors,
+licensed under the Apache License, Version 2.0.
+
+Bada is a working Quick Share implementation for Android, written in Kotlin.
+The Barq app consumes libbarq_protocol, which is a Rust port of the protocol layers of its core-protocol
+module: the UKEY2 handshake, D2D key derivation, the SecureMessage envelope,
+the Nearby Connections and Nearby Sharing wire formats, and the state machines
+over them. The code is rewritten rather than copied -- the languages and the
+process model differ -- but the protocol knowledge is theirs, and several
+non-obvious constants in this implementation exist because Bada found them
+first and wrote down why.
+
+Where a field value or a byte layout was taken from Bada, the source comment
+says so. See docs/CREDITS.md.
+
+--------------------------------------------------------------------------------
+
+The AirDrop implementation is informed by OpenDrop
+(https://github.com/seemoo-lab/opendrop) and by the AWDL research published by
+the Secure Mobile Networking Lab at TU Darmstadt.

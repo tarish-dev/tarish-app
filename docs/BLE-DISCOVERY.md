@@ -69,8 +69,8 @@ correctly ignores us.
 
 ### Provenance
 
-Apple publishes no specification for this. The layout was reverse-engineered by the
-operator against real Apple devices in **GoOpenDrop**, and is reimplemented here from
+Apple publishes no specification for this. The layout was reverse-engineered against
+real Apple devices in **GoOpenDrop**, by the same author, and is reimplemented here from
 that description rather than copied — see [CREDITS.md](CREDITS.md).
 
 It is worth saying why that mattered. The previous attempt at the mDNS TXT record was
