@@ -4,6 +4,8 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.os.ParcelFileDescriptor;
+import android.system.Os;
+import android.system.OsConstants;
 import android.util.Log;
 
 import java.io.InputStream;
@@ -174,6 +176,26 @@ final class QuickShareSender {
             } catch (Exception e) {
                 Log.d(TAG, "peer -> daemon ended: " + e.getMessage());
             } finally {
+                // HALF-CLOSE, so the daemon learns the peer is gone.
+                //
+                // Closing the pair outright here is what an earlier version did, and it
+                // pulled the descriptor out from under the other pump thread in the
+                // middle of a handshake. Waiting for BOTH threads fixed that and
+                // introduced the opposite bug: when the peer hangs up, this thread
+                // finishes while the other is still blocked reading from the daemon, so
+                // the pair stays open and the daemon's read NEVER RETURNS. A send to a
+                // peer that rejects us then hangs for the life of the process -- no
+                // error, no failure callback, one leaked thread per attempt.
+                //
+                // That is exactly how an Android peer closing the RFCOMM connection
+                // 209 ms after connecting presented: a transfer that logged "sending 1
+                // file(s)" and then nothing at all, for four minutes, until the daemon
+                // was restarted.
+                //
+                // shutdown(SHUT_WR) says "no more from me" without touching the
+                // descriptor the other thread is reading. The daemon sees EOF, reports
+                // the failure, closes its end, and the other thread unwinds on its own.
+                shutdownQuietly(local, OsConstants.SHUT_WR);
                 finished.run();
             }
         }, "barq-qs-in").start();
@@ -184,6 +206,11 @@ final class QuickShareSender {
             } catch (Exception e) {
                 Log.d(TAG, "daemon -> peer ended: " + e.getMessage());
             } finally {
+                // The daemon has stopped talking. An RFCOMM socket cannot be half-closed
+                // -- BluetoothSocket exposes no shutdown -- so the peer only learns this
+                // when the pair is closed below. Dropping our read end is still worth
+                // doing: it unblocks this side if the daemon vanished without closing.
+                shutdownQuietly(local, OsConstants.SHUT_RD);
                 finished.run();
             }
         }, "barq-qs-out").start();
@@ -198,6 +225,20 @@ final class QuickShareSender {
             // a handshake message sitting in a buffer waiting for more data is a transfer
             // that hangs with both sides healthy.
             out.flush();
+        }
+    }
+
+    /**
+     * Half-close one direction of the socket pair, best effort.
+     *
+     * <p>Distinct from closing it: the other pump thread still holds the same descriptor,
+     * and closing it under that thread is the bug this replaced.
+     */
+    private static void shutdownQuietly(ParcelFileDescriptor pfd, int how) {
+        try {
+            Os.shutdown(pfd.getFileDescriptor(), how);
+        } catch (Exception ignored) {
+            // Already closed, or already shut down in this direction. Nothing to do.
         }
     }
 

@@ -14,7 +14,12 @@ import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.os.ServiceManager;
 import android.provider.OpenableColumns;
+import android.text.Editable;
+import android.text.InputFilter;
+import android.text.InputType;
+import android.text.TextWatcher;
 import android.util.Log;
+import android.widget.EditText;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -145,6 +150,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private View liveDot;
     private final List<FileCollector.Stored> received = new ArrayList<>();
     private LinearLayout peerBox;
+    private TextView pinLabel;
+    private EditText pinEntry;
+    private LinearLayout pinRow;
+    private long pinTransfer;
     private TextView progressLabel;
     private ProgressBarView progressBar;
     private LinearLayout progressCard;
@@ -225,6 +234,16 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 showProgress(total > 0
                         ? Ui.size(done) + " of " + Ui.size(total)
                         : Ui.size(done), total > 0 ? (float) done / total : 0f);
+            });
+        }
+
+        @Override
+        public void onTransferPinRequired(long id) {
+            main.post(() -> {
+                if (id != activeTransfer) {
+                    return;
+                }
+                askForPin(id);
             });
         }
 
@@ -753,6 +772,52 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         progressCard.setLayoutParams(lp);
         progressCard.setVisibility(View.GONE);
 
+        // The PIN sits ABOVE the bar, because it matters before the transfer starts and
+        // stops mattering once it has. It is the one part of the handshake a person can
+        // check: both devices derive it from the same UKEY2 auth string, so two matching
+        // numbers mean nobody is in the middle.
+        pinLabel = Ui.text(this, "", 15, Ui.TEXT, true);
+        pinLabel.setVisibility(View.GONE);
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        pp.bottomMargin = Ui.dp(this, 10);
+        pinLabel.setLayoutParams(pp);
+        progressCard.addView(pinLabel);
+
+        pinRow = new LinearLayout(this);
+        pinRow.setGravity(Gravity.CENTER_VERTICAL);
+        pinRow.setVisibility(View.GONE);
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rp.bottomMargin = Ui.dp(this, 12);
+        pinRow.setLayoutParams(rp);
+
+        pinEntry = new EditText(this);
+        pinEntry.setInputType(InputType.TYPE_CLASS_NUMBER);
+        pinEntry.setFilters(new InputFilter[] {new InputFilter.LengthFilter(4)});
+        pinEntry.setHint("0000");
+        pinEntry.setTextSize(20);
+        pinEntry.setTextColor(Ui.TEXT);
+        pinEntry.setHintTextColor(Ui.TEXT_FAINT);
+        pinEntry.setBackground(Ui.card(this, Ui.SURFACE_SUNK, Ui.RULE, 12));
+        pinEntry.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
+        // Four digits is the whole input, so submit as soon as they are there rather
+        // than making someone reach for a button they have already earned.
+        pinEntry.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence c, int a, int b, int d) {}
+            @Override public void onTextChanged(CharSequence c, int a, int b, int d) {}
+            @Override public void afterTextChanged(Editable e) {
+                if (e.length() == 4) {
+                    submitPin();
+                }
+            }
+        });
+        LinearLayout.LayoutParams ep =
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        pinEntry.setLayoutParams(ep);
+        pinRow.addView(pinEntry);
+        progressCard.addView(pinRow);
+
         progressBar = new ProgressBarView(this);
         progressCard.addView(progressBar, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 6)));
@@ -785,6 +850,52 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     /**
+     * Ask for the PIN shown on the RECEIVING device.
+     *
+     * We are not told our own copy and must not be: if this screen could display it,
+     * someone could confirm a transfer without ever looking at the other device, and the
+     * PIN would be checking nothing. The daemon holds it and judges what is typed here.
+     */
+    private void askForPin(long id) {
+        if (progressCard == null) {
+            return;
+        }
+        pinTransfer = id;
+        progressCard.setVisibility(View.VISIBLE);
+        pinLabel.setText("Enter the PIN shown on the other device");
+        pinLabel.setVisibility(View.VISIBLE);
+        pinEntry.setText("");
+        pinRow.setVisibility(View.VISIBLE);
+        pinEntry.requestFocus();
+    }
+
+    /** Send what was typed to the daemon, which is the only side that knows the answer. */
+    private void submitPin() {
+        if (service == null || pinTransfer == 0) {
+            return;
+        }
+        String typed = pinEntry.getText().toString().trim();
+        boolean ok;
+        try {
+            ok = service.confirmTransferPin(pinTransfer, typed);
+        } catch (Exception e) {
+            Log.w(TAG, "could not submit the PIN", e);
+            return;
+        }
+        if (ok) {
+            pinTransfer = 0;
+            pinRow.setVisibility(View.GONE);
+            pinLabel.setText("PIN confirmed");
+        } else {
+            // A typo is the ordinary case, so this stays open rather than tearing the
+            // transfer down and making them start again.
+            pinLabel.setText("That PIN does not match \u2014 try again");
+            pinEntry.setText("");
+            pinEntry.requestFocus();
+        }
+    }
+
+    /**
      * Report how a transfer ended, where the user is already looking.
      *
      * In send mode that is the files row, which is the only part of the screen that was
@@ -805,6 +916,17 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         if (progressCard != null) {
             progressCard.setVisibility(View.GONE);
         }
+        if (pinLabel != null) {
+            // Cleared, not just hidden: the next transfer derives its own PIN, and a
+            // stale prompt reappearing for a moment is worse than none.
+            pinLabel.setText("");
+            pinLabel.setVisibility(View.GONE);
+        }
+        if (pinRow != null) {
+            pinRow.setVisibility(View.GONE);
+            pinEntry.setText("");
+        }
+        pinTransfer = 0;
     }
 
     private void setIdentityState(String state, boolean live) {
