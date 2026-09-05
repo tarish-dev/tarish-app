@@ -1,4 +1,4 @@
-package dev.barq.app;
+package dev.tarish.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -28,17 +28,17 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import dev.barq.BarqPeer;
-import dev.barq.BarqStatus;
-import dev.barq.IBarqCallback;
-import dev.barq.IBarqService;
+import dev.tarish.TarishPeer;
+import dev.tarish.TarishStatus;
+import dev.tarish.ITarishCallback;
+import dev.tarish.ITarishService;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 /**
- * Barq: one screen, two modes.
+ * Tarish: one screen, two modes.
  *
  * <p>Receive and Send are modes of the same screen rather than separate activities. The
  * identity, the service connection and the transfer state are shared between them, so
@@ -53,8 +53,8 @@ import java.util.List;
  */
 public final class MainActivity extends Activity implements BottomNav.Listener {
 
-    private static final String TAG = "BarqUI";
-    private static final String SERVICE_NAME = "dev.barq.IBarqService/default";
+    private static final String TAG = "TarishUI";
+    private static final String SERVICE_NAME = "dev.tarish.ITarishService/default";
 
     /** One visible session. The daemon expires it on its own timer regardless. */
     private static final int VISIBLE_SECONDS = 600;
@@ -63,24 +63,24 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private static final long RENEW_AFTER_MS = (VISIBLE_SECONDS - 120) * 1000L;
     private static final int REQ_PICK = 1;
 
-    // Outcomes from IBarqCallback.onTransferFinished.
+    // Outcomes from ITarishCallback.onTransferFinished.
     private static final int STATUS_FAILED = -1;
     private static final int STATUS_DECLINED = -2;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final List<Uri> shared = new ArrayList<>();
 
-    private IBarqService service;
+    private ITarishService service;
     private BottomNav nav;
     private LinearLayout content;
     private boolean sendMode;
     /** User choice merged with managed configuration; pushed to the daemon on connect. */
     private PolicyStore policyStore;
-    private dev.barq.BarqPolicy policy;
+    private dev.tarish.TarishPolicy policy;
     private long activeTransfer;
 
     /**
-     * The radios Barq needs, and whether we were the ones who switched them on.
+     * The radios Tarish needs, and whether we were the ones who switched them on.
      *
      * AWDL cannot start with Wi-Fi off -- not "works badly", cannot start: every mode and
      * channel is refused, because the AWDL driver rides the Wi-Fi driver's interface. A
@@ -131,7 +131,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private String peerSignature;
     /** When visibility was last asserted, so it can be renewed before the daemon expires it. */
     private long visibleSince;
-    /** Which protocol the pending offer arrived over; one of IBarqService.PROTOCOL_*. */
+    /** Which protocol the pending offer arrived over; one of ITarishService.PROTOCOL_*. */
     private int offerProtocol;
     /** The offer waiting for an answer, or null. Set by onTransferOffered. */
     private long offerId;
@@ -192,8 +192,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
     };
 
-    private final IBarqCallback callback = new IBarqCallback.Stub() {
-        @Override public void onPeerFound(BarqPeer peer) {}
+    private final ITarishCallback callback = new ITarishCallback.Stub() {
+        @Override public void onPeerFound(TarishPeer peer) {}
         @Override public void onPeerLost(String peerId) {}
 
         @Override
@@ -305,7 +305,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      *
      * The activity is singleTask, so a second share does NOT run onCreate -- without
      * this the files are dropped on the floor and the screen sits in whatever mode it
-     * was already in, which is exactly what it did: sharing to an open Barq showed the
+     * was already in, which is exactly what it did: sharing to an open Tarish showed the
      * receive screen and no files.
      */
     @Override
@@ -348,7 +348,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         Glyph bolt = new Glyph(this, Glyph.Kind.BOLT, Ui.ACCENT);
         int b = Ui.dp(this, 30);
         mark.addView(bolt, new LinearLayout.LayoutParams(b, b));
-        TextView title = Ui.text(this, "barq", 27, Ui.TEXT, true);
+        TextView title = Ui.text(this, "tarish", 27, Ui.TEXT, true);
         title.setLetterSpacing(-0.03f);
         title.setPadding(Ui.dp(this, 6), 0, 0, 0);
         mark.addView(title);
@@ -409,10 +409,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         int p = Ui.dp(this, 16);
         card.setPadding(p, p, p, p);
 
-        card.addView(Ui.text(this, "Barq is not installed on this device", 17, Ui.TEXT, true));
+        card.addView(Ui.text(this, "Tarish is not installed on this device", 17, Ui.TEXT, true));
 
         TextView why = Ui.text(this,
-                "This app is the visible half of Barq. The other half is a system service "
+                "This app is the visible half of Tarish. The other half is a system service "
                         + "that holds the radio and speaks the protocols, and it has to be "
                         + "part of the operating system \u2014 it needs privileges no app can "
                         + "grant itself.\n\n"
@@ -423,7 +423,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         card.addView(why);
 
         card.addView(Ui.text(this,
-                "github.com/bodaay/barq-daemon",
+                "github.com/tarish-dev/tarish-daemon",
                 12, Ui.ACCENT, false));
 
         TextView how = Ui.text(this,
@@ -490,7 +490,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     /**
      * "X wants to send you Y" — with the two answers, and no default.
      *
-     * Deliberately not a system dialog: this is the one screen in Barq where a person
+     * Deliberately not a system dialog: this is the one screen in Tarish where a person
      * is being asked to trust another device, and it should look like the rest of the
      * app rather than like something the platform threw up. It is also the only view
      * that can be sure it is on top, because receiving requires the app to be open.
@@ -506,7 +506,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         LinearLayout badgeRow = new LinearLayout(this);
         badgeRow.setPadding(0, 0, 0, Ui.dp(this, 8));
         badgeRow.addView(Ui.badge(this,
-                offerProtocol == IBarqService.PROTOCOL_QUICKSHARE ? "Quick Share" : "AirDrop"));
+                offerProtocol == ITarishService.PROTOCOL_QUICKSHARE ? "Quick Share" : "AirDrop"));
         card.addView(badgeRow);
 
         card.addView(Ui.text(this, offerFrom + " wants to send", 17, Ui.TEXT, true));
@@ -561,6 +561,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
         if (accept) {
             activeTransfer = id;
+            TransferService.watch(getApplicationContext(), id, describeOffer(), false);
             render();
             showProgress("Receiving…", 0f);
         } else {
@@ -716,14 +717,14 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         String heading = outcomeTitle != null ? outcomeTitle
                 : shared.isEmpty() ? "No files chosen" : describeShared();
         String sub = outcomeDetail != null ? outcomeDetail
-                : shared.isEmpty() ? "choose files, or share to barq from any app"
+                : shared.isEmpty() ? "choose files, or share to tarish from any app"
                                    : firstNames();
         col.addView(Ui.text(this, heading, 15,
                             outcomeTitle != null ? Ui.ACCENT : Ui.TEXT, true));
         col.addView(Ui.text(this, sub, 12, Ui.TEXT_FAINT, false));
         files.addView(col);
 
-        // Barq should be usable on its own, not only as a share target. Without this
+        // Tarish should be usable on its own, not only as a share target. Without this
         // the send half of the app could do nothing unless another app started it.
         TextView choose = Ui.text(this, shared.isEmpty() ? "CHOOSE" : "CHANGE",
                                   11, Ui.ON_ACCENT, true);
@@ -1026,7 +1027,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             service = null;
             return false;
         }
-        service = IBarqService.Stub.asInterface(binder);
+        service = ITarishService.Stub.asInterface(binder);
         try {
             service.registerCallback(callback);
             // The daemon starts DENIED and holds policy in memory, so it must be told
@@ -1083,7 +1084,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         if (service == null) {
             connect();
         }
-        startService(new Intent(this, BarqBleService.class));
+        startService(new Intent(this, TarishBleService.class));
         // Cancel any pending restore: the user came back, so the radios stay as they are.
         main.removeCallbacks(restoreRadios);
         promptForRadiosIfNeeded();
@@ -1109,7 +1110,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // daemon holds it for another half-minute so a file picker or a glance at
         // another app does not tear the link down and back up.
         setActive(false);
-        stopService(new Intent(this, BarqBleService.class));
+        stopService(new Intent(this, TarishBleService.class));
         askedAboutRadios = false;
         // Put back only what we turned on, and not for another half minute. Anything the
         // user already had on is never touched -- see Radios.
@@ -1196,7 +1197,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             return false;
         }
         try {
-            BarqStatus st = service.getStatus();
+            TarishStatus st = service.getStatus();
             return st != null && st.linkUp;
         } catch (Exception e) {
             return false;
@@ -1214,7 +1215,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
         Log.i(TAG, "setDiscoverable(" + visible + ") from " + why + " sendMode=" + sendMode);
         if (service == null) {
-            setIdentityState("barq service unavailable", false);
+            setIdentityState("tarish service unavailable", false);
             return;
         }
         try {
@@ -1243,7 +1244,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                     Log.e(TAG, "still cannot reach the daemon", again);
                 }
             }
-            setIdentityState("cannot reach the barq service", false);
+            setIdentityState("cannot reach the tarish service", false);
         }
     }
 
@@ -1341,6 +1342,34 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         return shared.size() == 1 ? "1 file ready" : shared.size() + " files ready";
     }
 
+    /**
+     * What an incoming transfer is, for the notification.
+     *
+     * The file names rather than a count when there is one of them, because "Receiving
+     * report.pdf" tells you whether to care and "Receiving 1 file" does not.
+     */
+    /**
+     * What an outgoing transfer is, for the notification.
+     *
+     * Not `describeShared`, which is phrased for the picker -- "Sending 3 files ready"
+     * reads like a bug.
+     */
+    private String describeSending() {
+        if (shared.isEmpty()) {
+            return "";
+        }
+        return shared.size() == 1 ? displayName(shared.get(0)) : shared.size() + " files";
+    }
+
+    private String describeOffer() {
+        if (offerNames == null || offerNames.length == 0) {
+            return "";
+        }
+        return offerNames.length == 1
+                ? offerNames[0]
+                : offerNames.length + " files";
+    }
+
     private void refreshPeers() {
         if (service == null || peerBox == null) {
             return;
@@ -1363,7 +1392,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             }
             return;
         }
-        BarqPeer[] peers;
+        TarishPeer[] peers;
         try {
             peers = service.getPeers();
         } catch (Exception e) {
@@ -1378,13 +1407,13 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // /Discover yet, and a device that will not answer cannot accept a file either.
         // Showing the hex string as though it were a device name is what made the list
         // look broken -- it is not a name, it is the absence of one.
-        List<BarqPeer> named = new ArrayList<>();
-        for (BarqPeer p : peers) {
+        List<TarishPeer> named = new ArrayList<>();
+        for (TarishPeer p : peers) {
             if (p.name != null && !p.name.matches("[0-9a-f]{12}")) {
                 named.add(p);
             }
         }
-        peers = named.toArray(new BarqPeer[0]);
+        peers = named.toArray(new TarishPeer[0]);
 
         // Everything the tiles are drawn FROM belongs in the signature, not just the
         // peers -- the gate below reads `shared`, so a selection change with an
@@ -1399,7 +1428,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // the live views and their listeners, and it should not depend on a promise made
         // by the other side of an IPC boundary.
         List<String> rows = new ArrayList<>();
-        for (BarqPeer p : peers) {
+        for (TarishPeer p : peers) {
             rows.add(p.id + "|" + p.name);
         }
         Collections.sort(rows);
@@ -1430,7 +1459,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 peerBox.addView(row);
             }
-            BarqPeer p = peers[i];
+            TarishPeer p = peers[i];
             LinearLayout tile = Ui.deviceTile(this, glyphFor(p), p.name, kindOf(p));
             if (shared.isEmpty()) {
                 // Dimmed and inert. A tile that looks tappable and silently does
@@ -1448,17 +1477,17 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     /**
-     * Apple peers are the only kind Barq talks to today, so everything is a device
+     * Apple peers are the only kind Tarish talks to today, so everything is a device
      * glyph rather than pretending to distinguish phone from laptop — which we cannot:
      * AirDrop's mDNS records carry no device type, only a name learned from /Discover.
      */
-    private static Glyph.Kind glyphFor(BarqPeer p) {
+    private static Glyph.Kind glyphFor(TarishPeer p) {
         return Glyph.Kind.LAPTOP;
     }
 
     /** The protocol that found this peer, named for a person rather than for a log. */
-    private static String kindOf(BarqPeer p) {
-        return p.protocol == IBarqService.PROTOCOL_QUICKSHARE ? "Quick Share" : "AirDrop";
+    private static String kindOf(TarishPeer p) {
+        return p.protocol == ITarishService.PROTOCOL_QUICKSHARE ? "Quick Share" : "AirDrop";
     }
 
     private void cancelActive() {
@@ -1485,7 +1514,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         render();
     }
 
-    private void sendTo(BarqPeer peer) {
+    private void sendTo(TarishPeer peer) {
         Log.i(TAG, "sendTo " + peer.name + " with " + shared.size() + " file(s)");
         if (service == null) {
             Log.w(TAG, "no service");
@@ -1523,7 +1552,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // succeeded, which reads like a transport failure and is not one.
         //
         // The sending thread owns these descriptors and closes them itself.
-        if (peer.protocol == IBarqService.PROTOCOL_QUICKSHARE) {
+        if (peer.protocol == ITarishService.PROTOCOL_QUICKSHARE) {
             // Quick Share needs a connection this process opens. The daemon cannot
             // reach framework Bluetooth, so it cannot dial a peer itself -- it runs
             // the protocol on a socket we hand it. Done off the UI thread because
@@ -1531,7 +1560,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             // seconds.
             final ParcelFileDescriptor[] toSend = fds.toArray(new ParcelFileDescriptor[0]);
             final String[] toName = names.toArray(new String[0]);
-            final IBarqService svc = service;
+            final ITarishService svc = service;
             new Thread(() -> {
                 long id = QuickShareSender.send(svc, peer, toSend, toName);
                 main.post(() -> {
@@ -1539,6 +1568,12 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                         showProgress("Could not reach " + peer.name, 0f);
                     } else {
                         activeTransfer = id;
+                        // From here the transfer must survive this screen. It runs partly
+                        // in THIS process -- we own the Bluetooth socket and pump bytes
+                        // through it -- so a backgrounded app being killed takes the
+                        // socket with it.
+                        TransferService.watch(getApplicationContext(), id,
+                                describeSending(), true);
                     }
                 });
                 for (ParcelFileDescriptor pfd : toSend) {
@@ -1548,7 +1583,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                         // Sent or failed; nothing useful to do.
                     }
                 }
-            }, "barq-qs-send").start();
+            }, "tarish-qs-send").start();
             return;
         }
 
@@ -1556,6 +1591,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             activeTransfer = service.sendFiles(peer.id,
                     fds.toArray(new ParcelFileDescriptor[0]),
                     names.toArray(new String[0]));
+            // The daemon owns this one end to end, so it would survive us regardless --
+            // but the person still deserves to see it progressing after they leave.
+            TransferService.watch(getApplicationContext(), activeTransfer,
+                    describeSending(), true);
         } catch (Exception e) {
             Log.e(TAG, "sendFiles failed", e);
             showProgress("Could not send", 0f);
@@ -1588,7 +1627,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     /**
-     * Offer to turn on whatever Barq needs, if anything is off.
+     * Offer to turn on whatever Tarish needs, if anything is off.
      *
      * Asked at most once per foreground visit: a user who says no should be able to look
      * around the app without being nagged, and the answer is obvious enough from the empty
@@ -1630,8 +1669,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         final String off = radios.whatIsOff();
         new AlertDialog.Builder(this)
                 .setTitle("Turn on " + off + "?")
-                .setMessage("Barq needs " + off + " to find nearby devices. "
-                        + "If you had it off, Barq turns it back off when you leave.")
+                .setMessage("Tarish needs " + off + " to find nearby devices. "
+                        + "If you had it off, Tarish turns it back off when you leave.")
                 .setPositiveButton("Turn on", (d, w) -> {
                     if (!radios.enableAll()) {
                         // Do not fail silently. Failing silently with Wi-Fi off is the

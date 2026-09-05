@@ -23,8 +23,8 @@
         android:title="@string/policy_airdrop_title"
         android:description="@string/policy_airdrop_desc"
         android:restrictionType="choice"
-        android:entries="@array/barq_mode_entries"
-        android:entryValues="@array/barq_mode_values"
+        android:entries="@array/tarish_mode_entries"
+        android:entryValues="@array/tarish_mode_values"
         android:defaultValue="both" />
 
     <restriction
@@ -32,8 +32,8 @@
         android:title="@string/policy_quickshare_title"
         android:description="@string/policy_quickshare_desc"
         android:restrictionType="choice"
-        android:entries="@array/barq_mode_entries"
-        android:entryValues="@array/barq_mode_values"
+        android:entries="@array/tarish_mode_entries"
+        android:entryValues="@array/tarish_mode_values"
         android:defaultValue="both" />
 
     <!--
@@ -44,6 +44,21 @@
         android:key="require_confirmation"
         android:title="@string/policy_confirm_title"
         android:description="@string/policy_confirm_desc"
+        android:restrictionType="bool"
+        android:defaultValue="true" />
+
+    <!--
+      Quick Share only, and it governs SENDING: the person sending must type the PIN
+      shown on the receiving device before anything leaves this phone.
+
+      Defaults TRUE. Turning it off removes the only check that the device we negotiated
+      with is the one in the room, so it is a decision an administrator can make and not
+      a default anyone falls into.
+    -->
+    <restriction
+        android:key="require_pin"
+        android:title="@string/policy_pin_title"
+        android:description="@string/policy_pin_desc"
         android:restrictionType="bool"
         android:defaultValue="true" />
 

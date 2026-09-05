@@ -2,7 +2,7 @@
 
 ## Why this exists
 
-Barq had a correct mDNS responder for `_airdrop._tcp.local` — the right records, the
+Tarish had a correct mDNS responder for `_airdrop._tcp.local` — the right records, the
 right TXT, NSEC, reverse PTR, verified byte-for-byte against what Google's Mosey puts
 on the wire — and no Apple device ever listed it.
 
@@ -15,7 +15,7 @@ The capture that explained it, taken on `mosey0` with a Mac's AirDrop window ope
 2 Q  PTR  _appSvcPrePair._tcp.local
 ```
 
-**Nobody was asking.** The only `_airdrop._tcp` queries on the link were Barq's own
+**Nobody was asking.** The only `_airdrop._tcp` queries on the link were Tarish's own
 browse looping back to itself. A perfect answer to a question no peer asks is
 invisible.
 
@@ -39,7 +39,7 @@ writer. Against 358 AWDL and Wi-Fi strings. It is a Wi-Fi component.
 
 Google draws the line in the same place: their app carries `BLUETOOTH_PRIVILEGED` in
 its privileged-permissions file, and the native daemon does not. So BLE belongs in the
-app, and `barqd` keeps `NET_ADMIN`/`NET_RAW` for the Wi-Fi side and no Bluetooth
+app, and `tarishd` keeps `NET_ADMIN`/`NET_RAW` for the Wi-Fi side and no Bluetooth
 access at all.
 
 ## The advertisement
@@ -63,7 +63,7 @@ own contact identifiers and compares, which is how contacts-only mode works. Two
 collide constantly by design — this narrows the field, it does not prove identity, and
 the real check happens later over TLS.
 
-Barq advertises all four slots as zero. That is an honest "visible to everyone": we
+Tarish advertises all four slots as zero. That is an honest "visible to everyone": we
 claim no identity rather than guessing at one, and a receiver in contacts-only mode
 correctly ignores us.
 
@@ -80,8 +80,8 @@ authority.
 
 ## What is not implemented yet
 
-- **Responding to a beacon.** Barq scans and logs sightings; it does not yet use one
-  to wake anything, because `barqd` already holds AWDL continuously. That is more
+- **Responding to a beacon.** Tarish scans and logs sightings; it does not yet use one
+  to wake anything, because `tarishd` already holds AWDL continuously. That is more
   power than Apple spends, and a later revision should let the beacon drive it.
 - **Contacts-only mode.** Requires real identifiers to hash, which requires the UI and
   a decision about where they are stored.

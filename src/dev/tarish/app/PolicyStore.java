@@ -1,4 +1,4 @@
-package dev.barq.app;
+package dev.tarish.app;
 
 import android.content.Context;
 import android.content.RestrictionsManager;
@@ -6,8 +6,8 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 
-import dev.barq.BarqPolicy;
-import dev.barq.IBarqService;
+import dev.tarish.TarishPolicy;
+import dev.tarish.ITarishService;
 
 /**
  * What this device is allowed to do, from the two places that get to say so.
@@ -18,7 +18,7 @@ import dev.barq.IBarqService;
  * to move — a control that ignores a tap reads as a broken app, not as an enforced
  * policy.
  *
- * <p>This class only decides. It does not enforce: {@code barqsharingd} does, because the
+ * <p>This class only decides. It does not enforce: {@code tarishsharingd} does, because the
  * daemon is what advertises, browses, accepts connections and writes files. An app that
  * merely hides a button is bypassed by killing the app and talking to the daemon
  * directly, so hiding a button is not a policy control.
@@ -32,14 +32,15 @@ import dev.barq.IBarqService;
  */
 final class PolicyStore {
 
-    private static final String TAG = "BarqPolicy";
-    private static final String PREFS = "barq_policy";
+    private static final String TAG = "TarishPolicy";
+    private static final String PREFS = "tarish_policy";
 
     // Preference keys. Deliberately the same strings as the managed-configuration keys,
     // so there is one vocabulary to reason about rather than two that must be mapped.
     private static final String K_AIRDROP = "airdrop";
     private static final String K_QUICKSHARE = "quickshare";
     private static final String K_CONFIRM = "require_confirmation";
+    private static final String K_PIN = "require_pin";
     private static final String K_NAME = "device_name";
 
     private final Context context;
@@ -68,10 +69,10 @@ final class PolicyStore {
     /**
      * Merge user preference and managed configuration into what the daemon should enforce.
      */
-    BarqPolicy effective() {
+    TarishPolicy effective() {
         Bundle managed = restrictions();
         SharedPreferences p = prefs();
-        BarqPolicy out = new BarqPolicy();
+        TarishPolicy out = new TarishPolicy();
 
         // A managed key that is present PINS the value. Absent means the admin has not
         // expressed an opinion, so the user's choice stands -- which is why this checks
@@ -80,17 +81,25 @@ final class PolicyStore {
         out.airdropManaged = managed.containsKey(K_AIRDROP);
         out.airdrop = out.airdropManaged
                 ? modeOf(managed.getString(K_AIRDROP))
-                : p.getInt(K_AIRDROP, IBarqService.MODE_BOTH);
+                : p.getInt(K_AIRDROP, ITarishService.MODE_BOTH);
 
         out.quickshareManaged = managed.containsKey(K_QUICKSHARE);
         out.quickshare = out.quickshareManaged
                 ? modeOf(managed.getString(K_QUICKSHARE))
-                : p.getInt(K_QUICKSHARE, IBarqService.MODE_BOTH);
+                : p.getInt(K_QUICKSHARE, ITarishService.MODE_BOTH);
 
         out.requireConfirmationManaged = managed.containsKey(K_CONFIRM);
         out.requireConfirmation = out.requireConfirmationManaged
                 ? managed.getBoolean(K_CONFIRM, true)
                 : p.getBoolean(K_CONFIRM, true);
+
+        // Defaults on. The PIN costs a step on every send, and someone handing a file to
+        // a device in front of them may not want it -- but it is the only check that the
+        // peer we negotiated with is the one in the room, so it is opted OUT of.
+        out.requirePinManaged = managed.containsKey(K_PIN);
+        out.requirePin = out.requirePinManaged
+                ? managed.getBoolean(K_PIN, true)
+                : p.getBoolean(K_PIN, true);
 
         // An empty managed name is "no opinion", not "call the device nothing". An admin
         // who wants to clear a name sets it to the value they want it to have.
@@ -110,20 +119,20 @@ final class PolicyStore {
      */
     private static int modeOf(String value) {
         if (value == null) {
-            return IBarqService.MODE_OFF;
+            return ITarishService.MODE_OFF;
         }
         switch (value) {
             case "both":
-                return IBarqService.MODE_BOTH;
+                return ITarishService.MODE_BOTH;
             case "receive_only":
-                return IBarqService.MODE_RECEIVE;
+                return ITarishService.MODE_RECEIVE;
             case "send_only":
-                return IBarqService.MODE_SEND;
+                return ITarishService.MODE_SEND;
             case "off":
-                return IBarqService.MODE_OFF;
+                return ITarishService.MODE_OFF;
             default:
                 Log.w(TAG, "unknown managed mode " + value + " — treating as off");
-                return IBarqService.MODE_OFF;
+                return ITarishService.MODE_OFF;
         }
     }
 
@@ -134,6 +143,10 @@ final class PolicyStore {
 
     void setUserConfirmation(boolean require) {
         prefs().edit().putBoolean(K_CONFIRM, require).apply();
+    }
+
+    void setUserRequirePin(boolean require) {
+        prefs().edit().putBoolean(K_PIN, require).apply();
     }
 
     void setUserDeviceName(String name) {
@@ -149,19 +162,20 @@ final class PolicyStore {
     }
 
     /** Is any field pinned by an administrator? Drives the "managed" note in settings. */
-    static boolean anyManaged(BarqPolicy p) {
+    static boolean anyManaged(TarishPolicy p) {
         return p.airdropManaged
                 || p.quickshareManaged
                 || p.requireConfirmationManaged
+                || p.requirePinManaged
                 || p.deviceNameManaged;
     }
 
     static boolean allowsSend(int mode) {
-        return mode == IBarqService.MODE_SEND || mode == IBarqService.MODE_BOTH;
+        return mode == ITarishService.MODE_SEND || mode == ITarishService.MODE_BOTH;
     }
 
     static boolean allowsReceive(int mode) {
-        return mode == IBarqService.MODE_RECEIVE || mode == IBarqService.MODE_BOTH;
+        return mode == ITarishService.MODE_RECEIVE || mode == ITarishService.MODE_BOTH;
     }
 
     /** Fold a direction change into the single mode value the schema uses. */
@@ -177,14 +191,14 @@ final class PolicyStore {
 
     private static int combine(boolean send, boolean receive) {
         if (send && receive) {
-            return IBarqService.MODE_BOTH;
+            return ITarishService.MODE_BOTH;
         }
         if (send) {
-            return IBarqService.MODE_SEND;
+            return ITarishService.MODE_SEND;
         }
         if (receive) {
-            return IBarqService.MODE_RECEIVE;
+            return ITarishService.MODE_RECEIVE;
         }
-        return IBarqService.MODE_OFF;
+        return ITarishService.MODE_OFF;
     }
 }

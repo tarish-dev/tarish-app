@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Barq's palette, shared between the icon and Ui.java. Kept here as well as in Java
+  Tarish's palette, shared between the icon and Ui.java. Kept here as well as in Java
   because resources cannot read a Java constant, and an icon that drifts from the app
   it launches is worse than a duplicated hex string.
 -->
 <resources>
-    <color name="barq_ink">#0A0A0C</color>
-    <color name="barq_ink_lift">#17171D</color>
-    <color name="barq_amber">#FFC531</color>
-    <color name="barq_amber_deep">#E8A317</color>
+    <color name="tarish_ink">#0A0A0C</color>
+    <color name="tarish_ink_lift">#17171D</color>
+    <color name="tarish_amber">#FFC531</color>
+    <color name="tarish_amber_deep">#E8A317</color>
 </resources>

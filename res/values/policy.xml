@@ -7,13 +7,13 @@
   values, never rename these four.
 -->
 <resources>
-    <string-array name="barq_mode_entries">
+    <string-array name="tarish_mode_entries">
         <item>Off</item>
         <item>Receive only</item>
         <item>Send only</item>
         <item>Send and receive</item>
     </string-array>
-    <string-array name="barq_mode_values" translatable="false">
+    <string-array name="tarish_mode_values" translatable="false">
         <item>off</item>
         <item>receive_only</item>
         <item>send_only</item>

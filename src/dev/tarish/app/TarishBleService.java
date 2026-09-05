@@ -1,4 +1,4 @@
-package dev.barq.app;
+package dev.tarish.app;
 
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
@@ -32,16 +32,16 @@ import java.util.List;
  * version started at boot and never stopped, which meant the device announced itself to
  * every scanner in range forever.
  *
- * <p><b>Why BLE lives here rather than in the daemon.</b> {@code barqd} is native and
+ * <p><b>Why BLE lives here rather than in the daemon.</b> {@code tarishd} is native and
  * holds {@code NET_ADMIN}/{@code NET_RAW} for the Wi-Fi side. BLE advertising goes
  * through the framework's {@link BluetoothLeAdvertiser}, which is Java API surface and
  * needs {@code BLUETOOTH_ADVERTISE}. Google draws the same line: {@code libmosey} is
  * pure AWDL and links no Bluetooth library at all, while their app carries
  * {@code BLUETOOTH_PRIVILEGED}.
  */
-public final class BarqBleService extends Service {
+public final class TarishBleService extends Service {
 
-    private static final String TAG = "BarqBle";
+    private static final String TAG = "TarishBle";
 
     private BluetoothLeAdvertiser advertiser;
     private BluetoothLeScanner scanner;
@@ -72,7 +72,7 @@ public final class BarqBleService extends Service {
      * logs nothing -- because advertising was only ever started from onCreate, and the
      * advertiser handle held across a cycle is stale. Silent, and it breaks receiving
      * as well as sending, so anything ordinary that toggles Bluetooth -- airplane mode,
-     * a system event, the user -- leaves Barq invisible with no error.
+     * a system event, the user -- leaves Tarish invisible with no error.
      */
     private final BroadcastReceiver adapterState = new BroadcastReceiver() {
         @Override
@@ -126,7 +126,7 @@ public final class BarqBleService extends Service {
                         + " rssi=" + result.getRssi());
             }
 
-            if (android.os.SystemProperties.getBoolean("persist.barq.ble_debug", false)) {
+            if (android.os.SystemProperties.getBoolean("persist.tarish.ble_debug", false)) {
                 android.bluetooth.le.ScanRecord rec = result.getScanRecord();
                 StringBuilder svc = new StringBuilder();
                 if (rec.getServiceData() != null) {
@@ -258,7 +258,7 @@ public final class BarqBleService extends Service {
     }
 
     /** The daemon's service name; the same one MainActivity uses. */
-    private static final String SERVICE_NAME = "dev.barq.IBarqService/default";
+    private static final String SERVICE_NAME = "dev.tarish.ITarishService/default";
 
     /**
      * Do not report the same peer more often than this.
@@ -271,7 +271,7 @@ public final class BarqBleService extends Service {
     private static final long REPORT_EVERY_MS = 5000;
 
     private final java.util.Map<String, Long> lastReported = new java.util.HashMap<>();
-    private dev.barq.IBarqService barqService;
+    private dev.tarish.ITarishService tarishService;
 
     /** Hand one Nearby advertisement to the daemon, which owns the decoder. */
     private void reportBlePeer(String address, int rssi, byte[] serviceData) {
@@ -281,11 +281,11 @@ public final class BarqBleService extends Service {
             return;
         }
         try {
-            if (barqService == null) {
+            if (tarishService == null) {
                 android.os.IBinder b = android.os.ServiceManager.getService(SERVICE_NAME);
-                barqService = b == null ? null : dev.barq.IBarqService.Stub.asInterface(b);
+                tarishService = b == null ? null : dev.tarish.ITarishService.Stub.asInterface(b);
             }
-            if (barqService == null) {
+            if (tarishService == null) {
                 // Was a silent return, which made a missing daemon indistinguishable
                 // from a peer that was never seen -- the peer list stayed empty and
                 // nothing anywhere said why. Rate-limited by the same clock as the
@@ -294,13 +294,13 @@ public final class BarqBleService extends Service {
                 Log.w(TAG, "cannot report peers: " + SERVICE_NAME + " is not published");
                 return;
             }
-            barqService.reportBlePeer(address, rssi, serviceData);
+            tarishService.reportBlePeer(address, rssi, serviceData);
             lastReported.put(address, now);
         } catch (Exception e) {
             // A dead proxy after a daemon restart. Drop it so the next sighting looks it
             // up again rather than failing forever against a binder that has gone.
             Log.d(TAG, "reportBlePeer failed, will rebind: " + e.getMessage());
-            barqService = null;
+            tarishService = null;
         }
     }
 
@@ -380,7 +380,7 @@ public final class BarqBleService extends Service {
         }
         ScanSettings settings = builder.build();
 
-        // DIAGNOSTIC MODE: setprop persist.barq.ble_debug 1
+        // DIAGNOSTIC MODE: setprop persist.tarish.ble_debug 1
         //
         // Scans unfiltered and logs every advertisement. Off by default because an
         // unfiltered scan wakes this process for every beacon in range, which on a phone
@@ -389,7 +389,7 @@ public final class BarqBleService extends Service {
         // It exists because a filtered scan that finds nothing is AMBIGUOUS: the filter
         // could be wrong, the peer could be silent, or the scan could not be running at
         // all, and those look identical from the log. This tells them apart.
-        if (android.os.SystemProperties.getBoolean("persist.barq.ble_debug", false)) {
+        if (android.os.SystemProperties.getBoolean("persist.tarish.ble_debug", false)) {
             Log.w(TAG, "BLE DEBUG: scanning unfiltered");
             scanner.startScan(new ArrayList<>(), settings, scanCallback);
             return;

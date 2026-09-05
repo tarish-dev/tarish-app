@@ -17,8 +17,8 @@
                 android:centerX="54"
                 android:centerY="48"
                 android:gradientRadius="62"
-                android:startColor="@color/barq_ink_lift"
-                android:endColor="@color/barq_ink" />
+                android:startColor="@color/tarish_ink_lift"
+                android:endColor="@color/tarish_ink" />
         </aapt:attr>
     </path>
 </vector>

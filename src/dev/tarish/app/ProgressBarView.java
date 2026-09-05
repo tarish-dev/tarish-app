@@ -1,4 +1,4 @@
-package dev.barq.app;
+package dev.tarish.app;
 
 import android.content.Context;
 import android.graphics.Canvas;

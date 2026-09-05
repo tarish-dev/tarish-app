@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Privileged permissions for Barq.
+  Privileged permissions for Tarish.
 
   A privileged app does not get its privileged permissions merely by being in
   priv-app; each one must be whitelisted here or the device refuses to boot with
   "Failed to grant permission". Keep this list minimal and justified.
 -->
 <permissions>
-    <privapp-permissions package="dev.barq.app">
+    <privapp-permissions package="dev.tarish.app">
         <!--
           Needed to advertise and scan without the throttling and app-op checks applied
           to ordinary apps, and to keep advertising while the screen is off. This is the

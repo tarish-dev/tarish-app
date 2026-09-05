@@ -21,4 +21,6 @@
 
     <string name="policy_name_title">Device name</string>
     <string name="policy_name_desc">The name other devices see. Leave empty to let the user choose.</string>
+    <string name="policy_pin_title">Require PIN confirmation for sending</string>
+    <string name="policy_pin_desc">When on, the person sending must type the PIN shown on the receiving device before any file is sent. Quick Share only.</string>
 </resources>

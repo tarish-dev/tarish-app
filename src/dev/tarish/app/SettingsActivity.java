@@ -1,4 +1,4 @@
-package dev.barq.app;
+package dev.tarish.app;
 
 import android.app.Activity;
 import android.graphics.Color;
@@ -17,8 +17,8 @@ import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
 
-import dev.barq.BarqPolicy;
-import dev.barq.IBarqService;
+import dev.tarish.TarishPolicy;
+import dev.tarish.ITarishService;
 
 /**
  * Settings: the device name, and what this device may do per protocol and per direction.
@@ -35,17 +35,17 @@ import dev.barq.IBarqService;
  */
 public final class SettingsActivity extends Activity {
 
-    private static final String TAG = "BarqSettings";
+    private static final String TAG = "TarishSettings";
 
     /** The daemon publishes itself here; it is not a bound service. */
-    private static final String SERVICE_NAME = "dev.barq.IBarqService/default";
+    private static final String SERVICE_NAME = "dev.tarish.ITarishService/default";
 
     /** What is in the name field right now, committed on focus loss or onPause. */
     private String typedName;
 
     private PolicyStore store;
-    private IBarqService service;
-    private BarqPolicy policy;
+    private ITarishService service;
+    private TarishPolicy policy;
 
     private LinearLayout content;
     private EditText nameField;
@@ -53,7 +53,7 @@ public final class SettingsActivity extends Activity {
     /** Look the daemon up fresh; it may have restarted since the last screen. */
     private void connect() {
         IBinder binder = ServiceManager.getService(SERVICE_NAME);
-        service = binder == null ? null : IBarqService.Stub.asInterface(binder);
+        service = binder == null ? null : ITarishService.Stub.asInterface(binder);
         if (service == null) {
             Log.w(TAG, "daemon did not publish " + SERVICE_NAME);
         }
@@ -156,7 +156,7 @@ public final class SettingsActivity extends Activity {
         nameField.setText(policy.deviceName);
         // The HINT is the name actually in use, so an empty field means "using the
         // device model" instead of looking like the setting is broken. Asking the daemon
-        // rather than guessing: it resolves persist.barq.name, then ro.product.model,
+        // rather than guessing: it resolves persist.tarish.name, then ro.product.model,
         // then a constant, and only it knows which one won.
         nameField.setHint(effectiveName());
         nameField.setSingleLine(true);
@@ -198,6 +198,25 @@ public final class SettingsActivity extends Activity {
         space(16);
         content.addView(Ui.sectionLabel(this, "QUICK SHARE  ·  ANDROID AND WINDOWS"));
         protocolCard(false);
+
+        // Quick Share only, and it governs SENDING -- which is why it sits here under
+        // Quick Share rather than with the incoming-transfer prompt below. AirDrop has no
+        // equivalent: its confirmation is on the receiving device, a different question.
+        LinearLayout pinCard = Ui.cardBox(this);
+        pinCard.addView(toggle("Require PIN confirmation for sending",
+                policy.requirePin,
+                !policy.requirePinManaged,
+                on -> {
+                    store.setUserRequirePin(on);
+                    policy.requirePin = on;
+                    push();
+                }));
+        content.addView(pinCard);
+        caption(policy.requirePinManaged
+                ? "Set by your organization."
+                : "When on, you type the PIN shown on the other device before anything is"
+                        + " sent. When off, files are sent as soon as the other device"
+                        + " accepts.");
 
         // ---- confirmation ------------------------------------------------------
         space(16);

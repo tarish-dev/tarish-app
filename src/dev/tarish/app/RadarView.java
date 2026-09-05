@@ -1,4 +1,4 @@
-package dev.barq.app;
+package dev.tarish.app;
 
 import android.animation.ValueAnimator;
 import android.content.Context;
@@ -131,7 +131,7 @@ final class RadarView extends View {
     }
 
     /**
-     * A lightning bolt in the core — Barq is برق, lightning.
+     * A lightning bolt in the core — Tarish is برق, lightning.
      *
      * Drawn from proportions of the core radius so it scales with the view instead of
      * being pinned to one density.

@@ -1,4 +1,4 @@
-package dev.barq.app;
+package dev.tarish.app;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -12,8 +12,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.UUID;
 
-import dev.barq.BarqPeer;
-import dev.barq.IBarqService;
+import dev.tarish.TarishPeer;
+import dev.tarish.ITarishService;
 
 /**
  * Opening a Bluetooth connection to a Quick Share peer, and handing it to the daemon.
@@ -35,7 +35,7 @@ import dev.barq.IBarqService;
  */
 final class QuickShareSender {
 
-    private static final String TAG = "BarqQS";
+    private static final String TAG = "TarishQS";
 
     /**
      * The RFCOMM service a stock Quick Share peer listens on.
@@ -65,7 +65,7 @@ final class QuickShareSender {
      *
      * @return the transfer id, or 0 if it could not be started.
      */
-    static long send(IBarqService service, BarqPeer peer,
+    static long send(ITarishService service, TarishPeer peer,
                      ParcelFileDescriptor[] files, String[] names) {
         boolean reachable = (peer.psm > 0 && peer.bleAddress != null && !peer.bleAddress.isEmpty())
                 || (peer.bluetoothMac != null && !peer.bluetoothMac.isEmpty());
@@ -96,7 +96,7 @@ final class QuickShareSender {
             // Re-resolving costs one binder call and uses the Bluetooth MAC to find the
             // peer again, because that is the one identifier a stock peer does NOT
             // rotate: its endpoint id, BLE address and PSM all change together.
-            BarqPeer fresh = resolve(service, peer);
+            TarishPeer fresh = resolve(service, peer);
             if (fresh != null) {
                 Log.i(TAG, "retrying " + peer.id + " on a freshly advertised address");
                 peer = fresh;
@@ -145,12 +145,12 @@ final class QuickShareSender {
     }
 
     /** Whether this peer asked to be reached over L2CAP rather than RFCOMM. */
-    private static boolean usesL2cap(BarqPeer peer) {
+    private static boolean usesL2cap(TarishPeer peer) {
         return peer.psm > 0 && peer.bleAddress != null && !peer.bleAddress.isEmpty();
     }
 
     /** Open whichever socket the peer's advertisement asked for. */
-    private static BluetoothSocket open(BarqPeer peer) {
+    private static BluetoothSocket open(TarishPeer peer) {
         return usesL2cap(peer)
                 ? connectL2cap(peer.bleAddress, peer.psm)
                 : connect(peer.bluetoothMac);
@@ -164,11 +164,11 @@ final class QuickShareSender {
      * -- in which case the caller keeps the failure it already has rather than inventing
      * a second one.
      */
-    private static BarqPeer resolve(IBarqService service, BarqPeer stale) {
+    private static TarishPeer resolve(ITarishService service, TarishPeer stale) {
         if (stale.bluetoothMac == null || stale.bluetoothMac.isEmpty()) {
             return null;
         }
-        BarqPeer[] peers;
+        TarishPeer[] peers;
         try {
             peers = service.getPeers();
         } catch (Exception e) {
@@ -178,7 +178,7 @@ final class QuickShareSender {
         if (peers == null) {
             return null;
         }
-        for (BarqPeer p : peers) {
+        for (TarishPeer p : peers) {
             if (stale.bluetoothMac.equals(p.bluetoothMac) && usesL2cap(p)) {
                 // Only worth taking if it actually differs; otherwise we would retry the
                 // same dead address and wait out the watchdog twice.
@@ -249,7 +249,7 @@ final class QuickShareSender {
                 Log.w(TAG, "connect exceeded " + CONNECT_TIMEOUT_MS + "ms; closing to unblock");
                 closeQuietly(socket);
             }
-        }, "barq-qs-connect-timeout");
+        }, "tarish-qs-connect-timeout");
         watchdog.setDaemon(true);
         watchdog.start();
         try {
@@ -353,7 +353,7 @@ final class QuickShareSender {
                 shutdownQuietly(local, OsConstants.SHUT_WR);
                 finished.run();
             }
-        }, "barq-qs-in").start();
+        }, "tarish-qs-in").start();
 
         new Thread(() -> {
             try {
@@ -368,7 +368,7 @@ final class QuickShareSender {
                 shutdownQuietly(local, OsConstants.SHUT_RD);
                 finished.run();
             }
-        }, "barq-qs-out").start();
+        }, "tarish-qs-out").start();
     }
 
     private static void copy(InputStream in, OutputStream out) throws Exception {

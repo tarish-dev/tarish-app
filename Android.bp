@@ -1,4 +1,4 @@
-// Barq app — built as a privileged system app.
+// Tarish app — built as a privileged system app.
 //
 // privileged + platform certificate is what BLUETOOTH_PRIVILEGED requires, and is the
 // same standing Google gives their own sharing app. Nothing here needs to be an
@@ -9,13 +9,13 @@ package {
 }
 
 android_app {
-    name: "BarqApp",
+    name: "TarishApp",
     srcs: ["src/**/*.java"],
     resource_dirs: ["res"],
 
     // The IPC contract lives with the daemon, which is the server. The app consumes
     // those files rather than carrying a copy that can drift.
-    static_libs: ["dev.barq-java"],
+    static_libs: ["dev.tarish-java"],
 
     // platform_apis rather than an SDK level: this is built in-tree with the platform
     // and uses system API surface.
@@ -29,21 +29,21 @@ android_app {
     },
 
     required: [
-        "privapp-permissions-dev.barq.app.xml",
-        "default-permissions-dev.barq.app.xml",
+        "privapp-permissions-dev.tarish.app.xml",
+        "default-permissions-dev.tarish.app.xml",
     ],
 }
 
 prebuilt_etc {
-    name: "privapp-permissions-dev.barq.app.xml",
-    src: "etc/privapp-permissions-dev.barq.app.xml",
+    name: "privapp-permissions-dev.tarish.app.xml",
+    src: "etc/privapp-permissions-dev.tarish.app.xml",
     sub_dir: "permissions",
     system_ext_specific: true,
 }
 
 prebuilt_etc {
-    name: "default-permissions-dev.barq.app.xml",
-    src: "etc/default-permissions-dev.barq.app.xml",
+    name: "default-permissions-dev.tarish.app.xml",
+    src: "etc/default-permissions-dev.tarish.app.xml",
     sub_dir: "default-permissions",
     system_ext_specific: true,
 }

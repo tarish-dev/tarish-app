@@ -1,4 +1,4 @@
-package dev.barq.app;
+package dev.tarish.app;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
@@ -10,7 +10,7 @@ import android.net.wifi.WifiManager;
 import android.util.Log;
 
 /**
- * Turn the radios Barq needs on, and put them back exactly as they were.
+ * Turn the radios Tarish needs on, and put them back exactly as they were.
  *
  * WHY THIS EXISTS
  *
@@ -18,8 +18,8 @@ import android.util.Log;
  * on frankel: with Wi-Fi disabled every radio mode and every channel is refused, because
  * the AWDL driver rides the Wi-Fi driver's interface.
  *
- *     barqd: Netlink  + channel [6]        refused: mosey_start_5 returned NULL
- *     barqd: Radiotap + channel [149, 44]  refused: mosey_start_5 returned NULL
+ *     tarishd: Netlink  + channel [6]        refused: mosey_start_5 returned NULL
+ *     tarishd: Radiotap + channel [149, 44]  refused: mosey_start_5 returned NULL
  *
  * So "Wi-Fi is on" is a precondition, not a preference. Before this class, the app did
  * not say so -- it did not even hold ACCESS_WIFI_STATE, so it could not tell. A user with
@@ -41,7 +41,7 @@ import android.util.Log;
  */
 final class Radios {
 
-    private static final String TAG = "Barq";
+    private static final String TAG = "Tarish";
 
     private final Context context;
 
@@ -114,7 +114,7 @@ final class Radios {
     /**
      * Turn on whatever is off. Call only after the user has agreed.
      *
-     * @return true if everything Barq needs is now on.
+     * @return true if everything Tarish needs is now on.
      */
     boolean enableAll() {
         watch();
@@ -172,7 +172,7 @@ final class Radios {
                 return false;
             }
             // Deprecated since API 29 and returns false for ordinary apps. It works here
-            // because Barq is a platform-signed privileged app holding NETWORK_SETTINGS.
+            // because Tarish is a platform-signed privileged app holding NETWORK_SETTINGS.
             // If that ever stops being true this returns false rather than throwing, and
             // the caller tells the user instead of failing silently -- which is the whole
             // bug this class exists to fix.
@@ -216,7 +216,7 @@ final class Radios {
     /**
      * Stop claiming a radio the moment the user touches it.
      *
-     * Without this, a user who turns Wi-Fi off from the quick settings while Barq is open
+     * Without this, a user who turns Wi-Fi off from the quick settings while Tarish is open
      * would find us turning it on... no -- worse: we would still believe we owned it, and
      * on the next restore we would switch off a radio they had since re-enabled
      * themselves. Any transition to OFF means we no longer owe anyone a restore.

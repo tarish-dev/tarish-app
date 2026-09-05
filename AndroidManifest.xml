@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Barq — the AirDrop-compatible sharing client.
+  Tarish — the AirDrop-compatible sharing client.
 
   Visibility is deliberately tied to the UI. MainActivity turns discovery on in
-  onResume and off in onPause, and BarqBleService is started and stopped with it.
+  onResume and off in onPause, and TarishBleService is started and stopped with it.
   Nothing advertises from boot.
 
   That is a privacy position, not a limitation: a device that announces itself to every
@@ -13,24 +13,33 @@
   the app has to be a real "no".
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="dev.barq.app"
-    android:sharedUserId="android.uid.system">
+    package="dev.tarish.app">
 
     <!--
       Android 12 split the old BLUETOOTH/BLUETOOTH_ADMIN pair into these. They are
       RUNTIME permissions even for a privileged app, so they are pre-granted in
-      etc/default-permissions-dev.barq.app.xml — being installed is not enough.
+      etc/default-permissions-dev.tarish.app.xml — being installed is not enough.
 
-      neverForLocation lets us scan without holding a location permission. Barq has no
+      neverForLocation lets us scan without holding a location permission. Tarish has no
       business knowing where the device is, and BLE scanning is otherwise treated as
       location-capable.
     -->
+    <!--
+      A transfer that continues after the app is backgrounded needs a foreground service,
+      and a foreground service needs a notification the person can see. POST_NOTIFICATIONS
+      is a RUNTIME permission, so like the Bluetooth ones it is pre-granted in
+      etc/default-permissions-dev.tarish.app.xml; being privileged is not enough.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <!-- Privileged, granted through etc/privapp-permissions-dev.barq.app.xml. -->
+    <!-- Privileged, granted through etc/privapp-permissions-dev.tarish.app.xml. -->
     <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED" />
 
     <!--
@@ -47,7 +56,7 @@
 
     <!--
       setWifiEnabled() has returned false for ordinary apps since API 29. NETWORK_SETTINGS
-      is what still permits it, and it is what lets Barq offer to turn Wi-Fi on and then
+      is what still permits it, and it is what lets Tarish offer to turn Wi-Fi on and then
       put it back exactly as it was. Without it the app can see that Wi-Fi is off and tell
       the user, but cannot offer to fix it.
 
@@ -68,7 +77,7 @@
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
     <application
-        android:label="Barq"
+        android:label="Tarish"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:defaultToDeviceProtectedStorage="true"
@@ -77,7 +86,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="Barq"
+            android:label="Tarish"
             android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -98,7 +107,7 @@
         <activity
             android:name=".SettingsActivity"
             android:exported="false"
-            android:label="Barq settings"
+            android:label="Tarish settings"
             android:parentActivityName=".MainActivity" />
 
         <!--
@@ -112,7 +121,19 @@
             android:resource="@xml/app_restrictions" />
 
         <service
-            android:name=".BarqBleService"
+            android:name=".TarishBleService"
             android:exported="false" />
+
+        <!--
+          Keeps a transfer alive once the app is backgrounded. connectedDevice is the
+          honest type: the work being protected is a Bluetooth link to another device.
+
+          Not exported. Nothing outside this app has any business starting a transfer
+          notification.
+        -->
+        <service
+            android:name=".TransferService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
     </application>
 </manifest>

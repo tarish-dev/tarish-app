@@ -1,6 +1,6 @@
 # Credits
 
-Barq stands on other people's work. This file records what and whose.
+Tarish stands on other people's work. This file records what and whose.
 
 ## Bada — kyujin-cho
 
@@ -20,7 +20,7 @@ Barq stands on other people's work. This file records what and whose.
 > and licence are preserved and modified files are marked as changed.
 >
 > **So the decision that was parked no longer needs making.** There is no permission to
-> seek and no publication trigger to watch: Barq may use this code, publicly, today.
+> seek and no publication trigger to watch: Tarish may use this code, publicly, today.
 > What Apache 2.0 does require is attribution, which is what this file is for, plus the
 > notice retained in each derived file — see the header on `protocol/src/hkdf.rs`.
 >
@@ -34,10 +34,10 @@ Barq stands on other people's work. This file records what and whose.
 > pure Kotlin/JVM by design — "this module has NO `android.*`" — which makes it
 > readable as a specification.
 
-An independent Quick Share implementation for Android, without GMS. Barq's app
+An independent Quick Share implementation for Android, without GMS. Tarish's app
 side takes its structure from Bada: share-sheet integration, a foreground
 receiver service, a Quick Settings tile, and NFC tap-to-share. Bada was also what
-we ran on the device while the Barq daemon was being built, and reading how it
+we ran on the device while the Tarish daemon was being built, and reading how it
 behaves is what identified the split this project is built around — its receiver
 already ran headlessly, which showed the transport did not need to live in an app
 at all.
@@ -46,7 +46,7 @@ at all.
 
 <https://github.com/seemoo-lab/opendrop> · <https://github.com/seemoo-lab/owl>
 
-The original public reverse engineering of AirDrop and AWDL. Barq does not use
+The original public reverse engineering of AirDrop and AWDL. Tarish does not use
 this code, but the protocol understanding underneath everything here — the
 election, the availability windows, what AirDrop actually speaks over the link —
 is theirs first.
@@ -63,7 +63,7 @@ dialect, cpio framing and the HTTPS exchange.
 
 An earlier from-scratch AirDrop implementation in Go, including its BLE layer.
 
-Barq's AirDrop BLE advertisement layout comes from that work: the Apple
+Tarish's AirDrop BLE advertisement layout comes from that work: the Apple
 manufacturer-data framing, the AirDrop message type, and the four two-byte truncated
 SHA-256 contact-identifier slots. Apple documents none of this, and the layout was
 established there by reverse-engineering against real Apple devices.

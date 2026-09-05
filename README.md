@@ -1,6 +1,6 @@
-# Barq (app)
+# Tarish (app)
 
-The Android half of [Barq](https://github.com/bodaay/barq-daemon) — **AirDrop and Quick
+The Android half of [Tarish](https://github.com/tarish-dev/tarish-daemon) — **AirDrop and Quick
 Share on Android with no Google Play Services and no Google account**.
 
 This repo is the part you can see: the share sheet, the transfer prompt, settings, and the
@@ -25,12 +25,12 @@ Nothing is there for convenience.
 ## Why this is thin, and stays thin
 
 Everything expensive lives in the daemon: holding the AWDL link, discovery, mDNS,
-and the transfer itself. The **UI** binds `IBarqService` when the user is looking at
+and the transfer itself. The **UI** binds `ITarishService` when the user is looking at
 it and is expected **not to be running the rest of the time**.
 
 **One part of the app is an exception, and has to be.** BLE advertising is what makes
 an Apple device start asking for us at all, and it cannot wait for someone to open
-something — so `BarqBleService` starts at boot and stays. It has no UI, no foreground
+something — so `TarishBleService` starts at boot and stays. It has no UI, no foreground
 notification, and does nothing but advertise and scan. That is the smallest thing that
 can be resident, and it is resident for the same reason the daemons are: being
 discoverable is not an activity the user should have to perform. See
@@ -61,8 +61,8 @@ stay alive, it belongs in the daemon instead — that is the design rule.
 - mDNS, the AirDrop protocol, the file transfer
 
 **Out — not our problem:**
-- self-update. Barq ships in the system image and updates with it.
-- permission onboarding. The platform pre-grants what Barq needs through
+- self-update. Tarish ships in the system image and updates with it.
+- permission onboarding. The platform pre-grants what Tarish needs through
   `default-permissions`, so there is no permission dance to walk a user through.
 
 ## Relationship to Bada
@@ -73,8 +73,8 @@ Quick Share implementation for Android. Bada demonstrated the app-side shape
 (share-sheet integration, a receiver service, a Quick Settings tile, NFC
 tap-to-share) and was what we used while the transport was being built.
 
-Barq is not a fork of it in spirit: the receiver moves out of the app entirely,
-and everything Barq talks to is our own daemon. Where code or approach is taken
+Tarish is not a fork of it in spirit: the receiver moves out of the app entirely,
+and everything Tarish talks to is our own daemon. Where code or approach is taken
 from Bada it is credited in `docs/CREDITS.md`, and that file is expected to grow
 rather than shrink.
 
@@ -84,11 +84,11 @@ The IPC contract is owned by the daemon and consumed from there, so the two
 cannot drift:
 
 ```
-barq-daemon/aidl/dev/barq/IBarqService.aidl
-barq-daemon/aidl/dev/barq/IBarqCallback.aidl
+tarish-daemon/aidl/dev/tarish/ITarishService.aidl
+tarish-daemon/aidl/dev/tarish/ITarishCallback.aidl
 ```
 
-`IBarqCallback` is `oneway` throughout — the daemon must never block on a UI
+`ITarishCallback` is `oneway` throughout — the daemon must never block on a UI
 process that may be slow, frozen, or about to be killed.
 
 ## Status

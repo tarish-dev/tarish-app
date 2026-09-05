@@ -1,4 +1,4 @@
-package dev.barq.app;
+package dev.tarish.app;
 
 import android.content.Context;
 import android.graphics.Color;
@@ -21,10 +21,10 @@ import android.widget.TextView;
  */
 final class Ui {
 
-    // Barq's own look, not a copy of the reference it was measured against.
+    // Tarish's own look, not a copy of the reference it was measured against.
     //
     // That reference is soft: lavender, pill shapes, 26dp corners, everything floating
-    // in its own rounded card. Barq is برق, lightning -- so this is the opposite
+    // in its own rounded card. Tarish is برق, lightning -- so this is the opposite
     // register: near-black, amber, tight corners, hairline rules instead of cards, and
     // uppercase micro-labels. It should read like an instrument rather than a settings
     // page.
