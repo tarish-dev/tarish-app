@@ -150,10 +150,13 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private View liveDot;
     private final List<FileCollector.Stored> received = new ArrayList<>();
     private LinearLayout peerBox;
-    private TextView pinLabel;
+    private android.app.AlertDialog pinDialog;
+    private TextView pinMessage;
     private EditText pinEntry;
-    private LinearLayout pinRow;
     private long pinTransfer;
+    /// Set when the person cancels at the PIN prompt, so the outcome reads "Cancelled"
+    /// rather than "Declined" -- which would blame the other device for our own choice.
+    private boolean pinCancelled;
     private TextView progressLabel;
     private ProgressBarView progressBar;
     private LinearLayout progressCard;
@@ -253,7 +256,13 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 activeTransfer = 0;
                 offerId = 0;   // whatever happened, the question is answered
                 hideProgress();
-                if (status == STATUS_DECLINED) {
+                if (pinCancelled) {
+                    // Our own doing, not the peer's. The daemon reports this as declined
+                    // because from its side a refused PIN and a refused transfer end the
+                    // same way, and blaming the other device would be a lie.
+                    pinCancelled = false;
+                    showOutcome("Cancelled", "you stopped it before anything was sent");
+                } else if (status == STATUS_DECLINED) {
                     // Someone pressed Decline. That is an answer, not a fault, and
                     // saying "could not send" would invite a retry that gets refused
                     // again.
@@ -772,52 +781,6 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         progressCard.setLayoutParams(lp);
         progressCard.setVisibility(View.GONE);
 
-        // The PIN sits ABOVE the bar, because it matters before the transfer starts and
-        // stops mattering once it has. It is the one part of the handshake a person can
-        // check: both devices derive it from the same UKEY2 auth string, so two matching
-        // numbers mean nobody is in the middle.
-        pinLabel = Ui.text(this, "", 15, Ui.TEXT, true);
-        pinLabel.setVisibility(View.GONE);
-        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        pp.bottomMargin = Ui.dp(this, 10);
-        pinLabel.setLayoutParams(pp);
-        progressCard.addView(pinLabel);
-
-        pinRow = new LinearLayout(this);
-        pinRow.setGravity(Gravity.CENTER_VERTICAL);
-        pinRow.setVisibility(View.GONE);
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        rp.bottomMargin = Ui.dp(this, 12);
-        pinRow.setLayoutParams(rp);
-
-        pinEntry = new EditText(this);
-        pinEntry.setInputType(InputType.TYPE_CLASS_NUMBER);
-        pinEntry.setFilters(new InputFilter[] {new InputFilter.LengthFilter(4)});
-        pinEntry.setHint("0000");
-        pinEntry.setTextSize(20);
-        pinEntry.setTextColor(Ui.TEXT);
-        pinEntry.setHintTextColor(Ui.TEXT_FAINT);
-        pinEntry.setBackground(Ui.card(this, Ui.SURFACE_SUNK, Ui.RULE, 12));
-        pinEntry.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
-        // Four digits is the whole input, so submit as soon as they are there rather
-        // than making someone reach for a button they have already earned.
-        pinEntry.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence c, int a, int b, int d) {}
-            @Override public void onTextChanged(CharSequence c, int a, int b, int d) {}
-            @Override public void afterTextChanged(Editable e) {
-                if (e.length() == 4) {
-                    submitPin();
-                }
-            }
-        });
-        LinearLayout.LayoutParams ep =
-                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        pinEntry.setLayoutParams(ep);
-        pinRow.addView(pinEntry);
-        progressCard.addView(pinRow);
-
         progressBar = new ProgressBarView(this);
         progressCard.addView(progressBar, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 6)));
@@ -852,21 +815,75 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     /**
      * Ask for the PIN shown on the RECEIVING device.
      *
-     * We are not told our own copy and must not be: if this screen could display it,
-     * someone could confirm a transfer without ever looking at the other device, and the
-     * PIN would be checking nothing. The daemon holds it and judges what is typed here.
+     * A modal over everything, because that is what this interaction is: nothing is sent
+     * until it is answered, and a field tucked into the progress card read as optional.
+     * It is also not dismissible by tapping outside or by Back -- the only ways out are
+     * the right digits or Cancel, both of which are decisions.
+     *
+     * We are not told our own copy of the PIN and must not be: if this screen could
+     * display it, someone could confirm a transfer without ever looking at the other
+     * device, and the PIN would be checking nothing. The daemon holds the value and
+     * judges what is typed here.
      */
     private void askForPin(long id) {
-        if (progressCard == null) {
-            return;
-        }
+        dismissPin();
         pinTransfer = id;
-        progressCard.setVisibility(View.VISIBLE);
-        pinLabel.setText("Enter the PIN shown on the other device");
-        pinLabel.setVisibility(View.VISIBLE);
-        pinEntry.setText("");
-        pinRow.setVisibility(View.VISIBLE);
+        pinCancelled = false;
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = Ui.dp(this, 24);
+        box.setPadding(pad, pad, pad, Ui.dp(this, 8));
+
+        TextView title = Ui.text(this, "Check the PIN", 20, Ui.TEXT, true);
+        box.addView(title);
+
+        pinMessage = Ui.text(this,
+                "Enter the 4-digit code shown on the other device.", 14, Ui.TEXT_MUTED, false);
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        mp.topMargin = Ui.dp(this, 6);
+        mp.bottomMargin = Ui.dp(this, 18);
+        pinMessage.setLayoutParams(mp);
+        box.addView(pinMessage);
+
+        pinEntry = new EditText(this);
+        pinEntry.setInputType(InputType.TYPE_CLASS_NUMBER);
+        pinEntry.setFilters(new InputFilter[] {new InputFilter.LengthFilter(4)});
+        pinEntry.setHint("0000");
+        pinEntry.setTextSize(32);
+        pinEntry.setGravity(Gravity.CENTER);
+        pinEntry.setLetterSpacing(0.4f);
+        pinEntry.setTextColor(Ui.TEXT);
+        pinEntry.setHintTextColor(Ui.TEXT_FAINT);
+        pinEntry.setBackground(Ui.card(this, Ui.SURFACE_SUNK, Ui.RULE, 14));
+        pinEntry.setPadding(Ui.dp(this, 16), Ui.dp(this, 14), Ui.dp(this, 16), Ui.dp(this, 14));
+        // Four digits is the whole input, so submit as soon as they are there rather than
+        // making someone reach for a button they have already earned.
+        pinEntry.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence c, int a, int b, int d) {}
+            @Override public void onTextChanged(CharSequence c, int a, int b, int d) {}
+            @Override public void afterTextChanged(Editable e) {
+                if (e.length() == 4) {
+                    submitPin();
+                }
+            }
+        });
+        box.addView(pinEntry);
+
+        pinDialog = new android.app.AlertDialog.Builder(this)
+                .setView(box)
+                .setNegativeButton("Cancel", (d, which) -> cancelPin())
+                .setCancelable(false)
+                .create();
+        // Back must not dismiss it either: leaving the prompt without answering would
+        // park the transfer with nothing on screen explaining why.
+        pinDialog.setOnKeyListener((d, keyCode, event) ->
+                keyCode == android.view.KeyEvent.KEYCODE_BACK);
+        pinDialog.show();
         pinEntry.requestFocus();
+        pinDialog.getWindow().setSoftInputMode(
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
     }
 
     /** Send what was typed to the daemon, which is the only side that knows the answer. */
@@ -884,14 +901,40 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
         if (ok) {
             pinTransfer = 0;
-            pinRow.setVisibility(View.GONE);
-            pinLabel.setText("PIN confirmed");
+            dismissPin();
         } else {
             // A typo is the ordinary case, so this stays open rather than tearing the
             // transfer down and making them start again.
-            pinLabel.setText("That PIN does not match \u2014 try again");
+            pinMessage.setText("That does not match what the other device is showing.");
             pinEntry.setText("");
             pinEntry.requestFocus();
+        }
+    }
+
+    /** Abandon the transfer from the PIN prompt. */
+    private void cancelPin() {
+        pinCancelled = true;
+        long id = pinTransfer;
+        pinTransfer = 0;
+        dismissPin();
+        if (service != null && id != 0) {
+            try {
+                service.cancelTransfer(id);
+            } catch (Exception e) {
+                Log.w(TAG, "could not cancel at the PIN prompt", e);
+            }
+        }
+        showOutcome("Cancelled", "you stopped it before anything was sent");
+    }
+
+    private void dismissPin() {
+        if (pinDialog != null) {
+            try {
+                pinDialog.dismiss();
+            } catch (Exception ignored) {
+                // Dismissing a dialog whose activity is gone is not worth a crash.
+            }
+            pinDialog = null;
         }
     }
 
@@ -916,16 +959,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         if (progressCard != null) {
             progressCard.setVisibility(View.GONE);
         }
-        if (pinLabel != null) {
-            // Cleared, not just hidden: the next transfer derives its own PIN, and a
-            // stale prompt reappearing for a moment is worse than none.
-            pinLabel.setText("");
-            pinLabel.setVisibility(View.GONE);
-        }
-        if (pinRow != null) {
-            pinRow.setVisibility(View.GONE);
-            pinEntry.setText("");
-        }
+        // The prompt is modal and owns its own lifetime, but a transfer that ends while
+        // it is up must not leave it there.
+        dismissPin();
         pinTransfer = 0;
     }
 

@@ -50,6 +50,14 @@ final class QuickShareSender {
     private static final UUID NEARBY_RFCOMM_UUID =
             UUID.fromString("a82efa21-ae5c-3dde-9bbc-f16da7b16c5a");
 
+    /**
+     * How long to wait for a Bluetooth connect before giving up.
+     *
+     * Long enough for a real connect on a busy radio, short enough that a stale address
+     * reports back while the person is still looking at the screen.
+     */
+    private static final int CONNECT_TIMEOUT_MS = 10_000;
+
     private QuickShareSender() {}
 
     /**
@@ -59,14 +67,43 @@ final class QuickShareSender {
      */
     static long send(IBarqService service, BarqPeer peer,
                      ParcelFileDescriptor[] files, String[] names) {
-        if (peer.bluetoothMac == null || peer.bluetoothMac.isEmpty()) {
+        boolean reachable = (peer.psm > 0 && peer.bleAddress != null && !peer.bleAddress.isEmpty())
+                || (peer.bluetoothMac != null && !peer.bluetoothMac.isEmpty());
+        if (!reachable) {
             // Discoverable but not reachable: the peer advertised no address. Saying so
             // is better than a connection attempt that cannot succeed.
             Log.w(TAG, "peer " + peer.id + " published no Bluetooth address");
             return 0;
         }
 
-        BluetoothSocket socket = connect(peer.bluetoothMac);
+        // WHICH SOCKET THE PEER ASKED FOR.
+        //
+        // A peer that published an L2CAP PSM refuses RFCOMM -- it accepts the connection
+        // and closes it inside 200 ms without sending a frame, which reads exactly like
+        // a peer that is asleep. A peer that published none accepts RFCOMM and completes
+        // whole transfers. This is not a preference to tune: it is in the advertisement.
+        boolean l2cap = usesL2cap(peer);
+        BluetoothSocket socket = open(peer);
+        if (socket == null && l2cap) {
+            // ONE RETRY, ON A FRESHLY RESOLVED PEER.
+            //
+            // A stock peer rotates its BLE address and its PSM together, every
+            // advertisement set. The row we were handed can already be pointing at an
+            // address that no longer exists by the time someone taps send, and the
+            // connect then blocks until the watchdog kills it -- which is what "stuck at
+            // starting" was.
+            //
+            // Re-resolving costs one binder call and uses the Bluetooth MAC to find the
+            // peer again, because that is the one identifier a stock peer does NOT
+            // rotate: its endpoint id, BLE address and PSM all change together.
+            BarqPeer fresh = resolve(service, peer);
+            if (fresh != null) {
+                Log.i(TAG, "retrying " + peer.id + " on a freshly advertised address");
+                peer = fresh;
+                l2cap = usesL2cap(peer);
+                socket = open(peer);
+            }
+        }
         if (socket == null) {
             return 0;
         }
@@ -83,7 +120,9 @@ final class QuickShareSender {
         long id;
         try {
             // pair[0] goes to the daemon; we keep pair[1] and pump.
-            id = service.sendFilesOnSocket(peer.id, pair[0], files, names);
+            id = l2cap
+                    ? service.sendFilesOnL2capSocket(peer.id, pair[0], files, names)
+                    : service.sendFilesOnSocket(peer.id, pair[0], files, names);
         } catch (Exception e) {
             Log.w(TAG, "daemon refused the transfer", e);
             closeQuietly(socket);
@@ -103,6 +142,122 @@ final class QuickShareSender {
         }
         pump(socket, pair[1]);
         return id;
+    }
+
+    /** Whether this peer asked to be reached over L2CAP rather than RFCOMM. */
+    private static boolean usesL2cap(BarqPeer peer) {
+        return peer.psm > 0 && peer.bleAddress != null && !peer.bleAddress.isEmpty();
+    }
+
+    /** Open whichever socket the peer's advertisement asked for. */
+    private static BluetoothSocket open(BarqPeer peer) {
+        return usesL2cap(peer)
+                ? connectL2cap(peer.bleAddress, peer.psm)
+                : connect(peer.bluetoothMac);
+    }
+
+    /**
+     * Find the peer again in the daemon's current list, by the identifier it does not
+     * rotate.
+     *
+     * Returns null when nothing matches -- the peer may simply not have advertised since
+     * -- in which case the caller keeps the failure it already has rather than inventing
+     * a second one.
+     */
+    private static BarqPeer resolve(IBarqService service, BarqPeer stale) {
+        if (stale.bluetoothMac == null || stale.bluetoothMac.isEmpty()) {
+            return null;
+        }
+        BarqPeer[] peers;
+        try {
+            peers = service.getPeers();
+        } catch (Exception e) {
+            Log.w(TAG, "could not re-resolve the peer", e);
+            return null;
+        }
+        if (peers == null) {
+            return null;
+        }
+        for (BarqPeer p : peers) {
+            if (stale.bluetoothMac.equals(p.bluetoothMac) && usesL2cap(p)) {
+                // Only worth taking if it actually differs; otherwise we would retry the
+                // same dead address and wait out the watchdog twice.
+                boolean moved = !stale.bleAddress.equals(p.bleAddress) || stale.psm != p.psm;
+                return moved ? p : null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Open an L2CAP connection-oriented channel to a peer that published a PSM.
+     *
+     * **To the BLE address, not the Bluetooth MAC.** The channel rides the LE link, and
+     * those are different addresses on the same device. The LE one is usually a
+     * resolvable private address that ROTATES -- we have watched one phone use three in
+     * as many minutes -- so it is only valid for as long as the advertisement that
+     * carried it, which is why it comes from the peer row rather than from anything
+     * cached here.
+     */
+    private static BluetoothSocket connectL2cap(String address, int psm) {
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+        if (adapter == null || !adapter.isEnabled()) {
+            Log.w(TAG, "Bluetooth is off");
+            return null;
+        }
+        try {
+            BluetoothDevice device = adapter.getRemoteDevice(address);
+            // INSECURE for the same reason as RFCOMM: Quick Share peers are not paired,
+            // and asking for a secure channel puts a pairing dialog in front of someone
+            // who only wanted to receive a file.
+            BluetoothSocket socket = device.createInsecureL2capChannel(psm);
+            connectWithDeadline(socket);
+            Log.i(TAG, "L2CAP connected to " + address + " psm=" + psm);
+            return socket;
+        } catch (Exception e) {
+            // A rotated address is the likely cause: the PSM was advertised from an
+            // address that no longer exists. Log both so that is visible rather than
+            // looking like the peer refusing us.
+            Log.w(TAG, "L2CAP connect to " + address + " psm=" + psm
+                    + " failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Connect, but give up after {@link #CONNECT_TIMEOUT_MS}.
+     *
+     * {@link BluetoothSocket#connect()} takes no timeout and, against an address that no
+     * longer exists, blocks far longer than anyone will wait -- the UI just sits at
+     * "starting" with no way to tell whether it is working. Closing the socket from
+     * another thread is the only thing that unblocks the syscall.
+     *
+     * A rotated address is the common case here, not an exotic one: a stock peer changes
+     * its advertised address every rotation, so a row that is thirty seconds old can
+     * already be pointing at nothing.
+     */
+    private static void connectWithDeadline(BluetoothSocket socket) throws Exception {
+        final java.util.concurrent.atomic.AtomicBoolean done =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+        Thread watchdog = new Thread(() -> {
+            try {
+                Thread.sleep(CONNECT_TIMEOUT_MS);
+            } catch (InterruptedException ignored) {
+                return;
+            }
+            if (!done.get()) {
+                Log.w(TAG, "connect exceeded " + CONNECT_TIMEOUT_MS + "ms; closing to unblock");
+                closeQuietly(socket);
+            }
+        }, "barq-qs-connect-timeout");
+        watchdog.setDaemon(true);
+        watchdog.start();
+        try {
+            socket.connect();
+        } finally {
+            done.set(true);
+            watchdog.interrupt();
+        }
     }
 
     /** Open an RFCOMM socket to a peer. */
@@ -127,7 +282,7 @@ final class QuickShareSender {
             // someone who only wanted to receive a file.
             BluetoothSocket socket =
                     device.createInsecureRfcommSocketToServiceRecord(NEARBY_RFCOMM_UUID);
-            socket.connect();
+            connectWithDeadline(socket);
             Log.i(TAG, "RFCOMM connected to " + mac);
             return socket;
         } catch (Exception e) {
