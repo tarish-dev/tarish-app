@@ -250,6 +250,18 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             });
         }
 
+        /**
+         * Deliberately empty -- TransferService does this one.
+         *
+         * Both components are registered during a transfer, and joining a Wi-Fi Direct
+         * group twice for one transfer would have the second attempt tear down the first's
+         * group. The service is the right owner because it is the half that survives this
+         * activity going away, which is what the wait for a group join invites.
+         */
+        @Override
+        public void onUpgradeNeeded(long id, dev.tarish.TarishUpgrade upgrade) {
+        }
+
         @Override
         public void onTransferFinished(long id, int status) {
             main.post(() -> {

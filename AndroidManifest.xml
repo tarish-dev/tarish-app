@@ -67,11 +67,37 @@
       claim that the permission needs whitelisting to be granted at all.
 
       It is a powerful permission and it is declared here explicitly rather than relied
-      on implicitly. The app shares uid with android.uid.system, so it would inherit this
-      through the shared uid regardless, and an inherited capability nobody wrote down is
-      the kind that gets audited wrongly later.
+      on implicitly.
+
+      An earlier version of this note said the app would inherit it anyway through
+      sharedUserId="android.uid.system". That is no longer true and should not be relied
+      on: the app dropped the system uid and runs in the platform_app domain, so this is
+      granted by the platform signature alone. Nothing else here needs the system uid
+      back, and it is NOT to be re-added to obtain a permission.
+
+      It is NOT what joins a Wi-Fi Direct group. That is WifiP2pManager.connect(), which
+      needs only NEARBY_WIFI_DEVICES and CHANGE_WIFI_STATE below (see WifiDirectJoiner).
+      If the offer-to-enable-Wi-Fi affordance is ever dropped, this permission goes with
+      it rather than staying behind "in case".
     -->
     <uses-permission android:name="android.permission.NETWORK_SETTINGS" />
+
+    <!--
+      WI-FI DIRECT, for the bandwidth upgrade.
+
+      A Quick Share transfer bootstraps over Bluetooth at around 70 KB/s and the peer then
+      offers a faster network. Joining that group is WifiP2pManager.connect() with the
+      network name and passphrase the peer sent, which is an ORDINARY runtime
+      permission: no system dialog and nothing privileged. Bada does the same with nothing more than
+      this, which is what settles it: the privileged half of the negotiation happens on the
+      peer's device, where the peer already has it.
+
+      neverForLocation because we do not want, and must not be given, position: the group
+      is identified by the name the peer told us over an encrypted channel, not by looking
+      at what is nearby.
+    -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
 
     <!-- BLE advertising is the discovery trigger; without it the device is invisible. -->
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />

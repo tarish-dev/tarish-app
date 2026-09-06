@@ -15,6 +15,7 @@ import android.util.Log;
 import dev.tarish.TarishPeer;
 import dev.tarish.ITarishCallback;
 import dev.tarish.ITarishService;
+import dev.tarish.TarishUpgrade;
 
 /**
  * Keeps a transfer alive, and visible, once the person has stopped looking at the app.
@@ -170,6 +171,30 @@ public final class TransferService extends Service {
                 long totalBytes, int protocol) {}
         @Override public void onTransferPinRequired(long id) {}
 
+        /**
+         * THE SERVICE OWNS THIS, not the activity.
+         *
+         * Joining a Wi-Fi Direct group takes seconds and the transfer is parked for all of
+         * them, which is exactly when someone puts the phone down and the activity goes
+         * away. This component is running precisely because the transfer must survive
+         * that, so the join belongs here; MainActivity stubs it out so the two do not both
+         * try to join the same group.
+         *
+         * Off the binder thread: the whole point is that it blocks.
+         */
+        @Override
+        public void onUpgradeNeeded(long id, TarishUpgrade upgrade) {
+            if (id != transfer) {
+                return;
+            }
+            ITarishService svc = service;
+            if (svc == null) {
+                return;
+            }
+            new Thread(() -> WifiDirectJoiner.join(TransferService.this, svc, id, upgrade),
+                    "tarish-wifi-direct").start();
+        }
+
         @Override
         public void onTransferProgress(long id, long done, long total) {
             if (id != transfer) {
@@ -184,6 +209,10 @@ public final class TransferService extends Service {
                 return;
             }
             notifications.notify(OUTCOME_ID, outcome(status));
+            // Give the radio back. The group was kept up for the whole transfer on purpose,
+            // so this is the only place that can end it -- and without it the device stays
+            // associated to a one-off network after the files have gone.
+            WifiDirectJoiner.release(id);
             transfer = 0;
             // Drops the ongoing notification with it, which is what should happen: the
             // outcome is a separate, dismissible one.
