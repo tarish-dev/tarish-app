@@ -67,6 +67,33 @@ final class QuickShareSender {
      */
     static long send(ITarishService service, TarishPeer peer,
                      ParcelFileDescriptor[] files, String[] names) {
+        // THE LAN FIRST, AND IT IS NOT AN OPTIMISATION.
+        //
+        // Wi-Fi LAN is a bootstrap medium in this protocol, not something a transfer
+        // upgrades to: a peer on the same subnet publishes an address over mDNS and is
+        // reached by connecting to it. That is how a stock implementation gets full speed
+        // to a Windows machine, and it is the route Bada tries before RFCOMM and L2CAP.
+        //
+        // Bluetooth is for peers that are NOT on our network. It works and it is slow --
+        // 200 KB/s measured, against tens of megabytes on a LAN -- so trying it first
+        // meant every transfer to a machine three metres away on the same router crawled.
+        //
+        // The daemon owns this decision because the daemon owns the mDNS table and the
+        // socket: no radio is involved in connecting on a network already joined, so
+        // there is nothing here the app is needed for. 0 means no LAN route, which is the
+        // ordinary answer off-network, and we fall through to Bluetooth below.
+        try {
+            long lan = service.sendFilesOnLan(peer.id, files, names);
+            if (lan != 0) {
+                Log.i(TAG, "sending to " + peer.id + " over the LAN");
+                return lan;
+            }
+        } catch (Exception e) {
+            // A daemon too old to have this transaction, or a refusal. Neither is a reason
+            // not to try Bluetooth.
+            Log.w(TAG, "LAN send unavailable; falling back to Bluetooth", e);
+        }
+
         boolean reachable = (peer.psm > 0 && peer.bleAddress != null && !peer.bleAddress.isEmpty())
                 || (peer.bluetoothMac != null && !peer.bluetoothMac.isEmpty());
         if (!reachable) {
