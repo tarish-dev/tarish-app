@@ -70,11 +70,11 @@ final class BottomNav extends LinearLayout {
             pill = new FrameLayout(c);
             int w = Ui.dp(c, 62), h = Ui.dp(c, 32);
             pill.setLayoutParams(new LayoutParams(w, h));
-            glyph = new Glyph(c, kind, Ui.TEXT_MUTED);
+            glyph = new Glyph(c, kind, Ui.textMuted(c));
             pill.addView(glyph, new FrameLayout.LayoutParams(h, h, Gravity.CENTER));
             addView(pill);
 
-            label = Ui.text(c, text, 12, Ui.TEXT_MUTED, false);
+            label = Ui.text(c, text, 12, Ui.textMuted(c), false);
             label.setGravity(Gravity.CENTER);
             label.setPadding(0, Ui.dp(c, 4), 0, 0);
             addView(label);
@@ -82,10 +82,10 @@ final class BottomNav extends LinearLayout {
 
         void setActive(boolean active) {
             pill.setBackground(active
-                    ? Ui.card(getContext(), Ui.ACCENT_FILL, Color.TRANSPARENT, 16)
+                    ? Ui.card(getContext(), Ui.accentFill(getContext()), Color.TRANSPARENT, 16)
                     : null);
-            glyph.setColor(active ? Ui.ON_ACCENT : Ui.TEXT_MUTED);
-            label.setTextColor(active ? Ui.TEXT : Ui.TEXT_MUTED);
+            glyph.setColor(active ? Ui.onAccent(getContext()) : Ui.textMuted(getContext()));
+            label.setTextColor(active ? Ui.textColor(getContext()) : Ui.textMuted(getContext()));
         }
     }
 }

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tarish brand ramps -->
+    <color name="signal_50">#FFF8E9</color>
+    <color name="signal_100">#FFEBC2</color>
+    <color name="signal_200">#FFDA92</color>
+    <color name="signal_300">#FFC65C</color>
+    <color name="signal_400">#FBAF2C</color>
+    <color name="signal_500">#EF9F0F</color>
+    <color name="signal_600">#C87D08</color>
+    <color name="signal_700">#9D5F09</color>
+    <color name="signal_800">#70440C</color>
+    <color name="signal_900">#452A09</color>
+    <color name="basalt_0">#FFFFFF</color>
+    <color name="basalt_50">#FAF8F4</color>
+    <color name="basalt_100">#F2EFE8</color>
+    <color name="basalt_200">#E3DFD5</color>
+    <color name="basalt_300">#C7C1B3</color>
+    <color name="basalt_400">#9B9587</color>
+    <color name="basalt_500">#6F6A61</color>
+    <color name="basalt_600">#4F4B44</color>
+    <color name="basalt_700">#36332E</color>
+    <color name="basalt_800">#24221E</color>
+    <color name="basalt_900">#181614</color>
+    <color name="basalt_950">#0D0C0A</color>
+    <color name="jade_100">#D1FAE5</color>
+    <color name="jade_300">#6EE7B7</color>
+    <color name="jade_500">#10B981</color>
+    <color name="jade_700">#047857</color>
+    <color name="jade_900">#064E3B</color>
+    <color name="ember_100">#FFE0E1</color>
+    <color name="ember_300">#FF9A9D</color>
+    <color name="ember_500">#E5484D</color>
+    <color name="ember_700">#A31B1F</color>
+    <color name="ember_900">#5C1013</color>
+    <color name="azure_100">#DBEAFE</color>
+    <color name="azure_300">#93C5FD</color>
+    <color name="azure_500">#3B82F6</color>
+    <color name="azure_700">#1D4ED8</color>
+    <color name="azure_900">#1E3A8A</color>
+</resources>

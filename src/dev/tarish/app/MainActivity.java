@@ -306,7 +306,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             getActionBar().hide();
         }
         getWindow().setStatusBarColor(Color.TRANSPARENT);
-        getWindow().setNavigationBarColor(Ui.BG);
+        getWindow().setNavigationBarColor(Ui.bg(this));
 
         collectShared(getIntent());
         // Arriving from a share sheet means the user already chose to send.
@@ -342,7 +342,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private ViewGroup buildShell() {
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setBackgroundColor(Ui.BG);
+        page.setBackgroundColor(Ui.bg(this));
 
         ScrollView scroller = new ScrollView(this);
         scroller.setFillViewport(true);
@@ -362,10 +362,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // system font is what every settings page looks like.
         LinearLayout mark = new LinearLayout(this);
         mark.setGravity(Gravity.CENTER_VERTICAL);
-        Glyph bolt = new Glyph(this, Glyph.Kind.BOLT, Ui.ACCENT);
+        Glyph bolt = new Glyph(this, Glyph.Kind.BOLT, Ui.accent(this));
         int b = Ui.dp(this, 30);
         mark.addView(bolt, new LinearLayout.LayoutParams(b, b));
-        TextView title = Ui.text(this, "tarish", 27, Ui.TEXT, true);
+        TextView title = Ui.text(this, "tarish", 27, Ui.textColor(this), true);
         title.setLetterSpacing(-0.03f);
         title.setPadding(Ui.dp(this, 6), 0, 0, 0);
         mark.addView(title);
@@ -373,7 +373,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // Push the gear to the far right of the wordmark row.
         View spacer = new View(this);
         mark.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1f));
-        Glyph gear = new Glyph(this, Glyph.Kind.GEAR, Ui.TEXT_MUTED);
+        Glyph gear = new Glyph(this, Glyph.Kind.GEAR, Ui.textMuted(this));
         int g = Ui.dp(this, 26);
         gear.setOnClickListener(v ->
                 startActivity(new android.content.Intent(this, SettingsActivity.class)));
@@ -390,7 +390,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         nav = new BottomNav(this, this);
-        nav.setBackgroundColor(Ui.SURFACE);
+        nav.setBackgroundColor(Ui.surface(this));
         page.addView(nav);
         return page;
     }
@@ -430,7 +430,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         int p = Ui.dp(this, 16);
         card.setPadding(p, p, p, p);
 
-        card.addView(Ui.text(this, "Tarish is not installed on this device", 17, Ui.TEXT, true));
+        card.addView(Ui.text(this, "Tarish is not installed on this device", 17, Ui.textColor(this), true));
 
         TextView why = Ui.text(this,
                 "This app is the visible half of Tarish. The other half is a system service "
@@ -439,18 +439,18 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                         + "grant itself.\n\n"
                         + "Installing this app on its own cannot work, and nothing here will "
                         + "find a device.",
-                13, Ui.TEXT_MUTED, false);
+                13, Ui.textMuted(this), false);
         why.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 10));
         card.addView(why);
 
         card.addView(Ui.text(this,
                 "github.com/tarish-dev/tarish-daemon",
-                12, Ui.ACCENT, false));
+                12, Ui.accent(this), false));
 
         TextView how = Ui.text(this,
                 "That repository has the integration guide, including the one platform "
                         + "patch it needs.",
-                11, Ui.TEXT_FAINT, false);
+                11, Ui.textFaint(this), false);
         how.setPadding(0, Ui.dp(this, 6), 0, 0);
         card.addView(how);
         return card;
@@ -536,10 +536,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         int h = Ui.dp(this, 10);
         int v = Ui.dp(this, 6);
         chip.setPadding(h, v, h, v);
-        chip.setBackground(Ui.card(this, Ui.SURFACE_SUNK, Ui.RULE, 999));
+        chip.setBackground(Ui.card(this, Ui.surfaceSunk(this), Ui.ruleColor(this), 999));
 
-        chip.addView(Ui.dot(this, on ? Ui.LIVE : Ui.TEXT_FAINT, 6));
-        TextView t = Ui.text(this, label, 12, on ? Ui.TEXT : Ui.TEXT_FAINT, false);
+        chip.addView(Ui.dot(this, on ? Ui.live(this) : Ui.textFaint(this), 6));
+        TextView t = Ui.text(this, label, 12, on ? Ui.textColor(this) : Ui.textFaint(this), false);
         LinearLayout.LayoutParams lp =
                 new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -550,7 +550,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // Only annotate the off case, and only with something the person can act on.
         // "Managed" tells them to stop trying; the absence of it means Settings will work.
         if (!on) {
-            TextView why = Ui.text(this, managed ? "managed" : "off", 11, Ui.TEXT_FAINT, false);
+            TextView why = Ui.text(this, managed ? "managed" : "off", 11, Ui.textFaint(this), false);
             LinearLayout.LayoutParams wp =
                     new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
                             LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -588,7 +588,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 : what + " is turned off for both protocols. Turn one on in Settings.";
 
         LinearLayout card = Ui.cardBox(this);
-        TextView t = Ui.text(this, why, 13, Ui.ACCENT, false);
+        TextView t = Ui.text(this, why, 13, Ui.accent(this), false);
         int q = Ui.dp(this, 12);
         t.setPadding(q, q, q, q);
         card.addView(t);
@@ -638,7 +638,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 offerProtocol == ITarishService.PROTOCOL_QUICKSHARE ? "Quick Share" : "AirDrop"));
         card.addView(badgeRow);
 
-        card.addView(Ui.text(this, offerFrom + " wants to send", 17, Ui.TEXT, true));
+        card.addView(Ui.text(this, offerFrom + " wants to send", 17, Ui.textColor(this), true));
 
         String what;
         if (offerNames.length == 0) {
@@ -648,27 +648,27 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         } else {
             what = offerNames.length + " files — " + String.join(", ", offerNames);
         }
-        TextView detail = Ui.text(this, what, 13, Ui.TEXT_FAINT, false);
+        TextView detail = Ui.text(this, what, 13, Ui.textFaint(this), false);
         detail.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 14));
         card.addView(detail);
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
 
-        TextView decline = Ui.text(this, "DECLINE", 13, Ui.TEXT, true);
+        TextView decline = Ui.text(this, "DECLINE", 13, Ui.textColor(this), true);
         decline.setGravity(Gravity.CENTER);
         decline.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
-        decline.setBackground(Ui.card(this, Ui.SURFACE, Ui.RULE, 10));
+        decline.setBackground(Ui.card(this, Ui.surface(this), Ui.ruleColor(this), 10));
         decline.setOnClickListener(v -> answerOffer(false));
         row.addView(decline, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         View gap = new View(this);
         row.addView(gap, new LinearLayout.LayoutParams(Ui.dp(this, 10), 1));
 
-        TextView accept = Ui.text(this, "ACCEPT", 13, Ui.BG, true);
+        TextView accept = Ui.text(this, "ACCEPT", 13, Ui.bg(this), true);
         accept.setGravity(Gravity.CENTER);
         accept.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
-        accept.setBackground(Ui.card(this, Ui.ACCENT, Ui.ACCENT, 10));
+        accept.setBackground(Ui.card(this, Ui.accent(this), Ui.accent(this), 10));
         accept.setOnClickListener(v -> answerOffer(true));
         row.addView(accept, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -710,7 +710,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         identity.setOrientation(LinearLayout.HORIZONTAL);
         identity.setGravity(Gravity.CENTER_VERTICAL);
 
-        liveDot = Ui.dot(this, Ui.TEXT_FAINT, 8);
+        liveDot = Ui.dot(this, Ui.textFaint(this), 8);
         identity.addView(liveDot);
 
         LinearLayout col = new LinearLayout(this);
@@ -720,10 +720,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         lp.leftMargin = Ui.dp(this, 12);
         col.setLayoutParams(lp);
 
-        deviceLine = Ui.text(this, android.os.Build.MODEL.toUpperCase(), 15, Ui.TEXT, true);
+        deviceLine = Ui.text(this, android.os.Build.MODEL.toUpperCase(), 15, Ui.textColor(this), true);
         deviceLine.setLetterSpacing(0.04f);
         col.addView(deviceLine);
-        stateLine = Ui.text(this, "", 13, Ui.TEXT_MUTED, false);
+        stateLine = Ui.text(this, "", 13, Ui.textMuted(this), false);
         col.addView(stateLine);
         identity.addView(col);
         // Re-state what is actually true, rather than a default that may already be wrong.
@@ -750,7 +750,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
         inbox.removeAllViews();
         if (received.isEmpty()) {
-            TextView empty = Ui.text(this, "Nothing received yet", 13, Ui.TEXT_FAINT, false);
+            TextView empty = Ui.text(this, "Nothing received yet", 13, Ui.textFaint(this), false);
             int p = Ui.dp(this, 16);
             empty.setPadding(p, p, p, p);
             inbox.addView(empty);
@@ -772,10 +772,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         int p = Ui.dp(this, 14);
         row.setPadding(p, p, p, p);
 
-        TextView ext = Ui.text(this, extensionOf(f.name), 10, Ui.ACCENT, true);
+        TextView ext = Ui.text(this, extensionOf(f.name), 10, Ui.accent(this), true);
         ext.setGravity(Gravity.CENTER);
         ext.setLetterSpacing(0.06f);
-        ext.setBackground(Ui.card(this, Ui.SURFACE_SUNK, Ui.RULE, 8));
+        ext.setBackground(Ui.card(this, Ui.surfaceSunk(this), Ui.ruleColor(this), 8));
         int w = Ui.dp(this, 42), h = Ui.dp(this, 34);
         row.addView(ext, new LinearLayout.LayoutParams(w, h));
 
@@ -785,18 +785,18 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         lp.leftMargin = Ui.dp(this, 12);
         col.setLayoutParams(lp);
-        TextView n = Ui.text(this, f.name, 14, Ui.TEXT, false);
+        TextView n = Ui.text(this, f.name, 14, Ui.textColor(this), false);
         n.setMaxLines(1);
         n.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
         col.addView(n);
         col.addView(Ui.text(this, Ui.size(f.bytes) + "  ·  " + ago(f.receivedAt),
-                            12, Ui.TEXT_FAINT, false));
+                            12, Ui.textFaint(this), false));
         row.addView(col);
 
-        TextView open = Ui.text(this, "OPEN", 11, Ui.ON_ACCENT, true);
+        TextView open = Ui.text(this, "OPEN", 11, Ui.onAccent(this), true);
         open.setLetterSpacing(0.1f);
         open.setGravity(Gravity.CENTER);
-        open.setBackground(Ui.card(this, Ui.ACCENT, Color.TRANSPARENT, 8));
+        open.setBackground(Ui.card(this, Ui.accent(this), Color.TRANSPARENT, 8));
         open.setPadding(Ui.dp(this, 14), Ui.dp(this, 8), Ui.dp(this, 14), Ui.dp(this, 8));
         open.setOnClickListener(v -> openFile(f));
         row.addView(open);
@@ -849,17 +849,17 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 : shared.isEmpty() ? "choose files, or share to tarish from any app"
                                    : firstNames();
         col.addView(Ui.text(this, heading, 15,
-                            outcomeTitle != null ? Ui.ACCENT : Ui.TEXT, true));
-        col.addView(Ui.text(this, sub, 12, Ui.TEXT_FAINT, false));
+                            outcomeTitle != null ? Ui.accent(this) : Ui.textColor(this), true));
+        col.addView(Ui.text(this, sub, 12, Ui.textFaint(this), false));
         files.addView(col);
 
         // Tarish should be usable on its own, not only as a share target. Without this
         // the send half of the app could do nothing unless another app started it.
         TextView choose = Ui.text(this, shared.isEmpty() ? "CHOOSE" : "CHANGE",
-                                  11, Ui.ON_ACCENT, true);
+                                  11, Ui.onAccent(this), true);
         choose.setLetterSpacing(0.1f);
         choose.setGravity(Gravity.CENTER);
-        choose.setBackground(Ui.card(this, Ui.ACCENT, Color.TRANSPARENT, 8));
+        choose.setBackground(Ui.card(this, Ui.accent(this), Color.TRANSPARENT, 8));
         choose.setPadding(Ui.dp(this, 16), Ui.dp(this, 9), Ui.dp(this, 16), Ui.dp(this, 9));
         choose.setOnClickListener(v -> pickFiles());
         files.addView(choose);
@@ -884,7 +884,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 shared.isEmpty() ? "Nearby devices" : "Send to nearby devices");
         labelRow.addView(label, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        TextView refresh = Ui.text(this, "REFRESH", 11, Ui.ACCENT, true);
+        TextView refresh = Ui.text(this, "REFRESH", 11, Ui.accent(this), true);
         refresh.setPadding(Ui.dp(this, 12), Ui.dp(this, 6), Ui.dp(this, 4), Ui.dp(this, 6));
         refresh.setOnClickListener(v -> forceRediscover());
         labelRow.addView(refresh);
@@ -895,7 +895,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         content.addView(peerBox);
         if (shared.isEmpty()) {
             TextView hint = Ui.text(this, "Choose files to enable sending",
-                                    12, Ui.TEXT_FAINT, false);
+                                    12, Ui.textFaint(this), false);
             hint.setGravity(Gravity.CENTER);
             hint.setPadding(0, Ui.dp(this, 10), 0, 0);
             content.addView(hint);
@@ -918,15 +918,15 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, Ui.dp(this, 12), 0, 0);
-        progressLabel = Ui.text(this, "", 13, Ui.TEXT_MUTED, false);
+        progressLabel = Ui.text(this, "", 13, Ui.textMuted(this), false);
         LinearLayout.LayoutParams tp =
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         progressLabel.setLayoutParams(tp);
         row.addView(progressLabel);
 
-        TextView cancel = Ui.text(this, "Cancel", 13, Ui.ON_ACCENT, true);
+        TextView cancel = Ui.text(this, "Cancel", 13, Ui.onAccent(this), true);
         cancel.setPadding(Ui.dp(this, 18), Ui.dp(this, 8), Ui.dp(this, 18), Ui.dp(this, 8));
-        cancel.setBackground(Ui.card(this, Ui.ACCENT_FILL, Color.TRANSPARENT, 18));
+        cancel.setBackground(Ui.card(this, Ui.accentFill(this), Color.TRANSPARENT, 18));
         cancel.setOnClickListener(v -> cancelActive());
         row.addView(cancel);
         progressCard.addView(row);
@@ -965,11 +965,11 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         int pad = Ui.dp(this, 24);
         box.setPadding(pad, pad, pad, Ui.dp(this, 8));
 
-        TextView title = Ui.text(this, "Check the PIN", 20, Ui.TEXT, true);
+        TextView title = Ui.text(this, "Check the PIN", 20, Ui.textColor(this), true);
         box.addView(title);
 
         pinMessage = Ui.text(this,
-                "Enter the 4-digit code shown on the other device.", 14, Ui.TEXT_MUTED, false);
+                "Enter the 4-digit code shown on the other device.", 14, Ui.textMuted(this), false);
         LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         mp.topMargin = Ui.dp(this, 6);
@@ -984,9 +984,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         pinEntry.setTextSize(32);
         pinEntry.setGravity(Gravity.CENTER);
         pinEntry.setLetterSpacing(0.4f);
-        pinEntry.setTextColor(Ui.TEXT);
-        pinEntry.setHintTextColor(Ui.TEXT_FAINT);
-        pinEntry.setBackground(Ui.card(this, Ui.SURFACE_SUNK, Ui.RULE, 14));
+        pinEntry.setTextColor(Ui.textColor(this));
+        pinEntry.setHintTextColor(Ui.textFaint(this));
+        pinEntry.setBackground(Ui.card(this, Ui.surfaceSunk(this), Ui.ruleColor(this), 14));
         pinEntry.setPadding(Ui.dp(this, 16), Ui.dp(this, 14), Ui.dp(this, 16), Ui.dp(this, 14));
         // Four digits is the whole input, so submit as soon as they are there rather than
         // making someone reach for a button they have already earned.
@@ -1100,7 +1100,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             stateLine.setText(state);
         }
         if (liveDot != null) {
-            liveDot.setBackground(Ui.circle(live ? Ui.LIVE : Ui.TEXT_FAINT));
+            liveDot.setBackground(Ui.circle(live ? Ui.live(this) : Ui.textFaint(this)));
         }
     }
 
@@ -1596,7 +1596,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         if (peers.length == 0) {
             TextView none = Ui.text(this,
                     "Looking…\nOn an Apple device, open AirDrop and set it to Everyone",
-                    13, Ui.TEXT_FAINT, false);
+                    13, Ui.textFaint(this), false);
             none.setGravity(Gravity.CENTER);
             none.setPadding(0, Ui.dp(this, 30), 0, Ui.dp(this, 14));
             peerBox.addView(none);
@@ -1801,7 +1801,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             peerSignature = null;       // force the next poll to rebuild the rows
             if (peerBox != null) {
                 peerBox.removeAllViews();
-                TextView searching = Ui.text(this, "Searching\u2026", 12, Ui.TEXT_FAINT, false);
+                TextView searching = Ui.text(this, "Searching\u2026", 12, Ui.textFaint(this), false);
                 searching.setGravity(Gravity.CENTER);
                 searching.setPadding(0, Ui.dp(this, 24), 0, Ui.dp(this, 24));
                 peerBox.addView(searching);

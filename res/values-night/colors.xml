@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tarish's semantic colours, DARK theme - the default, and the one this audience lives in.
+
+  Same roles as res/values/colors.xml, different rungs. See that file for why the kit's
+  themes.xml is not used directly.
+-->
+<resources>
+    <color name="t_bg">@color/basalt_950</color>
+    <color name="t_surface">@color/basalt_900</color>
+    <color name="t_surface_sunk">@color/basalt_800</color>
+    <color name="t_surface_edge">@color/basalt_700</color>
+    <color name="t_rule">@color/basalt_700</color>
+
+    <color name="t_accent">@color/signal_300</color>
+    <color name="t_accent_fill">@color/signal_300</color>
+    <color name="t_accent_dim">@color/signal_800</color>
+    <!-- Text ON the amber fill: the darkest signal rung, not the page black. -->
+    <color name="t_on_accent">@color/signal_900</color>
+
+    <color name="t_live">@color/jade_300</color>
+    <color name="t_error">@color/ember_300</color>
+    <color name="t_info">@color/azure_300</color>
+
+    <color name="t_text">@color/basalt_100</color>
+    <color name="t_text_muted">@color/basalt_300</color>
+    <color name="t_text_faint">@color/basalt_500</color>
+</resources>

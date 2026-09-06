@@ -29,26 +29,88 @@ final class Ui {
     // uppercase micro-labels. It should read like an instrument rather than a settings
     // page.
 
-    /** Page background. Almost black; the accent has to be the only bright thing. */
-    static final int BG = Color.parseColor("#0A0A0C");
-    /** A raised block. Barely lighter than the page -- separation comes from rules. */
-    static final int SURFACE = Color.parseColor("#131317");
-    static final int SURFACE_EDGE = Color.parseColor("#1F1F26");
-    static final int SURFACE_SUNK = Color.parseColor("#1A1A20");
-    /** Hairline between rows, which replaces one-card-per-item. */
-    static final int RULE = Color.parseColor("#22222A");
+    // COLOURS COME FROM RESOURCES, NOT FROM CONSTANTS.
+    //
+    // These were `static final int` values parsed from hex, which is exactly what a light
+    // theme cannot survive: a constant is fixed at class-load and knows nothing about the
+    // configuration. Reading them through Context.getColor is what lets one call site render
+    // correctly in both themes, because the resource system picks res/values or
+    // res/values-night for us.
+    //
+    // The values themselves live in res/values*/colors.xml and come from the brand kit
+    // unchanged; this class only asks for them by role. Every method takes a Context because
+    // every caller already had one -- the Ui helpers are all Context-first.
 
-    /** Lightning: amber, not a system blue. The one saturated colour on the screen. */
-    static final int ACCENT = Color.parseColor("#FFC531");
-    static final int ACCENT_DIM = Color.parseColor("#7A5C12");
-    static final int ACCENT_FILL = Color.parseColor("#FFC531");
-    static final int ON_ACCENT = Color.parseColor("#0A0A0C");
-    /** A live indicator: transfers and visibility use it, nothing else does. */
-    static final int LIVE = Color.parseColor("#3DDC84");
+    /** Page background. */
+    static int bg(Context c) {
+        return c.getColor(R.color.t_bg);
+    }
 
-    static final int TEXT = Color.parseColor("#F5F5F7");
-    static final int TEXT_MUTED = Color.parseColor("#9A9AA6");
-    static final int TEXT_FAINT = Color.parseColor("#61616E");
+    /** A raised block. Separation comes from rules rather than shadow. */
+    static int surface(Context c) {
+        return c.getColor(R.color.t_surface);
+    }
+
+    static int surfaceEdge(Context c) {
+        return c.getColor(R.color.t_surface_edge);
+    }
+
+    static int surfaceSunk(Context c) {
+        return c.getColor(R.color.t_surface_sunk);
+    }
+
+    /**
+     * Colour of the hairline between rows.
+     *
+     * `ruleColor`, not `rule`: {@link #rule(Context)} already returns the divider VIEW, and
+     * two methods with one signature do not compile. The pair reads better named apart
+     * anyway -- one is a colour, the other is a widget.
+     */
+    static int ruleColor(Context c) {
+        return c.getColor(R.color.t_rule);
+    }
+
+    /** Signal amber: the brand, the send action, active transfers. */
+    static int accent(Context c) {
+        return c.getColor(R.color.t_accent);
+    }
+
+    static int accentDim(Context c) {
+        return c.getColor(R.color.t_accent_dim);
+    }
+
+    static int accentFill(Context c) {
+        return c.getColor(R.color.t_accent_fill);
+    }
+
+    /** Text and glyphs sitting ON the amber fill. */
+    static int onAccent(Context c) {
+        return c.getColor(R.color.t_on_accent);
+    }
+
+    /** Jade: received and complete. The counterpart to amber's sending, never the brand. */
+    static int live(Context c) {
+        return c.getColor(R.color.t_live);
+    }
+
+    /** Ember: failures and destructive actions only. */
+    static int error(Context c) {
+        return c.getColor(R.color.t_error);
+    }
+
+    /** Primary text colour. Named apart from {@link #text(Context, String, float, int,
+     * boolean)}, which builds a TextView. */
+    static int textColor(Context c) {
+        return c.getColor(R.color.t_text);
+    }
+
+    static int textMuted(Context c) {
+        return c.getColor(R.color.t_text_muted);
+    }
+
+    static int textFaint(Context c) {
+        return c.getColor(R.color.t_text_faint);
+    }
 
     private Ui() {}
 
@@ -77,7 +139,7 @@ final class Ui {
      * without competing with the content, which is what a heading in a utility should do.
      */
     static TextView sectionLabel(Context c, String s) {
-        TextView t = text(c, s.toUpperCase(), 11, TEXT_FAINT, true);
+        TextView t = text(c, s.toUpperCase(), 11, textFaint(c), true);
         t.setLetterSpacing(0.18f);
         t.setPadding(dp(c, 2), dp(c, 26), 0, dp(c, 10));
         return t;
@@ -86,7 +148,7 @@ final class Ui {
     /** A hairline. Used instead of giving every row its own card. */
     static View rule(Context c) {
         View v = new View(c);
-        v.setBackgroundColor(RULE);
+        v.setBackgroundColor(ruleColor(c));
         v.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(c, 0.5f))));
         return v;
@@ -105,7 +167,7 @@ final class Ui {
     static LinearLayout cardBox(Context c) {
         LinearLayout l = new LinearLayout(c);
         l.setOrientation(LinearLayout.VERTICAL);
-        l.setBackground(card(c, SURFACE, SURFACE_EDGE, 12));
+        l.setBackground(card(c, surface(c), surfaceEdge(c), 12));
         int p = dp(c, 16);
         l.setPadding(p, p, p, p);
         return l;
@@ -122,7 +184,7 @@ final class Ui {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
 
-        row.addView(glyphInCircle(c, kind, ON_ACCENT, ACCENT_FILL, 46));
+        row.addView(glyphInCircle(c, kind, onAccent(c), accentFill(c), 46));
 
         LinearLayout col = new LinearLayout(c);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -130,8 +192,8 @@ final class Ui {
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         lp.leftMargin = dp(c, 16);
         col.setLayoutParams(lp);
-        col.addView(text(c, name, 16, TEXT, true));
-        col.addView(text(c, state, 14, TEXT_MUTED, false));
+        col.addView(text(c, name, 16, textColor(c), true));
+        col.addView(text(c, state, 14, textMuted(c), false));
         row.addView(col);
         return row;
     }
@@ -143,9 +205,9 @@ final class Ui {
         int p = dp(c, 26);
         box.setPadding(p, p, p, p);
 
-        box.addView(glyphInCircle(c, kind, ACCENT, SURFACE_SUNK, 76));
+        box.addView(glyphInCircle(c, kind, accent(c), surfaceSunk(c), 76));
 
-        TextView t = text(c, label, 15, TEXT, false);
+        TextView t = text(c, label, 15, textColor(c), false);
         t.setGravity(Gravity.CENTER);
         t.setPadding(0, dp(c, 16), 0, 0);
         box.addView(t);
@@ -165,9 +227,9 @@ final class Ui {
         int p = dp(c, 8);
         tile.setPadding(p, p, p, p);
 
-        tile.addView(glyphInCircle(c, glyph, ON_ACCENT, ACCENT_FILL, 68));
+        tile.addView(glyphInCircle(c, glyph, onAccent(c), accentFill(c), 68));
 
-        TextView n = text(c, name, 14, TEXT, false);
+        TextView n = text(c, name, 14, textColor(c), false);
         n.setGravity(Gravity.CENTER);
         n.setPadding(0, dp(c, 10), 0, 0);
         n.setMaxLines(1);
@@ -188,12 +250,12 @@ final class Ui {
 
     /** A small pill naming a protocol. */
     static TextView badge(Context c, String label) {
-        TextView b = text(c, label, 10, TEXT_MUTED, true);
+        TextView b = text(c, label, 10, textMuted(c), true);
         b.setAllCaps(true);
         b.setLetterSpacing(0.06f);
         int px = dp(c, 7), py = dp(c, 2);
         b.setPadding(px, py, px, py);
-        b.setBackground(card(c, SURFACE_SUNK, RULE, 999));
+        b.setBackground(card(c, surfaceSunk(c), ruleColor(c), 999));
         return b;
     }
 

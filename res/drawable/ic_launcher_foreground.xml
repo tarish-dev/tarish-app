@@ -1,27 +1,104 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  The Tarish mark: a bolt built from two opposed wedges with a gap through the middle.
-  It is a bolt (tarish is Arabic for lightning) and it is two devices handing something
-  across, which is the whole app. The gap is the point — a solid bolt is a weather
-  icon, a split one is a transfer.
-  Geometry is deliberately sharp and asymmetric. Rounded corners and a centred glyph
-  are what every share app already looks like.
-  Drawn inside the 72dp adaptive safe zone (18..90 of the 108 viewport), so no launcher
-  mask can clip a tip off.
+  The Tarish mark: a document with a folded corner, broadcasting.
+
+  From the brand kit's app-icon/ic_launcher_foreground.svg. The waves borrow the one visual
+  idea every user already understands and anchor them to a FILE rather than a signal, which
+  is what stops the shape reading as a wifi glyph.
+
+  THE FOLDED CORNER IS LOAD-BEARING. Without it the card reads as a phone or a SIM. Never
+  remove it and never square off the card.
+
+  This replaces the old Barq bolt, which was a different mark entirely - and whose comment
+  claimed "tarish is Arabic for lightning". That is what BARQ means; tarish is the one you
+  send with a message, a courier. The mark changed when the name did.
+
+  Converted from SVG by hand, since the kit ships this layer as SVG only. The group transform
+  is the kit's, and it is what keeps the furthest painted pixel inside the 69dp safe circle so
+  no launcher mask clips it. SVG gradients are in objectBoundingBox units, so each is mapped
+  to absolute coordinates against its own path's bounding box; for the three arcs that box is
+  taken from their endpoints, which sets the direction the gradient runs.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <group
+        android:translateX="23.5346"
+        android:translateY="25.3907"
+        android:scaleX="0.640030"
+        android:scaleY="0.640030">
 
-    <!-- upper wedge: falls to the left, the leading half of the stroke -->
-    <path
-        android:fillColor="#FFC531"
-        android:pathData="M74,18 L30,53 L61,53 Z" />
+        <!-- The card. -->
+        <path android:pathData="M18.5,38 H34 L48,52 V79.5 a8.5,8.5 0 0 1 -8.5,8.5 H18.5 a8.5,8.5 0 0 1 -8.5,-8.5 V46.5 a8.5,8.5 0 0 1 8.5,-8.5 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="17.6" android:startY="38"
+                    android:endX="40.4" android:endY="88">
+                    <item android:offset="0" android:color="#FFFFFF"/>
+                    <item android:offset="1" android:color="#DBD4C5"/>
+                </gradient>
+            </aapt:attr>
+        </path>
 
-    <!-- lower wedge: rises to the right, offset so the two read as one stroke -->
-    <path
-        android:fillColor="#E8A317"
-        android:pathData="M34,90 L78,55 L47,55 Z" />
+        <!-- The fold, darker than the card so the corner reads as turned over. -->
+        <path android:pathData="M34,38 L48,52 L34,52 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="34" android:startY="38"
+                    android:endX="48" android:endY="52">
+                    <item android:offset="0" android:color="#B6AD9B"/>
+                    <item android:offset="1" android:color="#9C9280"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Three waves, Signal amber, round caps: the same geometry as the icon set. -->
+        <path
+            android:pathData="M50.495,26.262 A12,12 0 0 1 59.971,37.163"
+            android:strokeWidth="8.5"
+            android:strokeLineCap="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="51.443" android:startY="26.262"
+                    android:endX="59.023" android:endY="37.163">
+                    <item android:offset="0" android:color="#FFDD93"/>
+                    <item android:offset="1" android:color="#EF9F0F"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path
+            android:pathData="M52.678,15.992 A22.5,22.5 0 0 1 70.445,36.430"
+            android:strokeWidth="8.5"
+            android:strokeLineCap="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="54.455" android:startY="15.992"
+                    android:endX="68.668" android:endY="36.430">
+                    <item android:offset="0" android:color="#FFDD93"/>
+                    <item android:offset="1" android:color="#EF9F0F"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path
+            android:pathData="M54.861,5.721 A33,33 0 0 1 80.920,35.698"
+            android:strokeWidth="8.5"
+            android:strokeLineCap="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="57.467" android:startY="5.721"
+                    android:endX="78.314" android:endY="35.698">
+                    <item android:offset="0" android:color="#FFDD93"/>
+                    <item android:offset="1" android:color="#EF9F0F"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+    </group>
 </vector>

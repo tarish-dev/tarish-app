@@ -1,14 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Themed-icon layer. Android tints this itself, so it must be a single flat colour and
-  must carry the silhouette alone — the two-tone split from the colour version would
-  come out as one solid shape and lose the gap that makes the mark.
+  The same silhouette in one colour, for Material You themed icons: Android tints this from
+  the wallpaper. The brand kit says to ship it, and without it a themed-icon launcher falls
+  back to a flat generic tile.
+
+  Note what is NOT here: the fold. The monochrome layer is a silhouette, so a fold drawn in
+  the same single colour would be invisible - the kit's own SVG omits it for that reason.
+  Everything is solid black; the system supplies the colour.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:fillColor="#FFFFFF" android:pathData="M74,18 L30,53 L61,53 Z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M34,90 L78,55 L47,55 Z" />
+    <group
+        android:translateX="23.5346"
+        android:translateY="25.3907"
+        android:scaleX="0.640030"
+        android:scaleY="0.640030">
+        <path
+            android:pathData="M18.5,38 H34 L48,52 V79.5 a8.5,8.5 0 0 1 -8.5,8.5 H18.5 a8.5,8.5 0 0 1 -8.5,-8.5 V46.5 a8.5,8.5 0 0 1 8.5,-8.5 Z"
+            android:fillColor="#000000"/>
+        <path
+            android:pathData="M50.495,26.262 A12,12 0 0 1 59.971,37.163"
+            android:strokeColor="#000000"
+            android:strokeWidth="8.5"
+            android:strokeLineCap="round"/>
+        <path
+            android:pathData="M52.678,15.992 A22.5,22.5 0 0 1 70.445,36.430"
+            android:strokeColor="#000000"
+            android:strokeWidth="8.5"
+            android:strokeLineCap="round"/>
+        <path
+            android:pathData="M54.861,5.721 A33,33 0 0 1 80.920,35.698"
+            android:strokeColor="#000000"
+            android:strokeWidth="8.5"
+            android:strokeLineCap="round"/>
+    </group>
 </vector>

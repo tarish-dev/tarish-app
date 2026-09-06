@@ -25,8 +25,8 @@ final class ProgressBarView extends View {
 
     ProgressBarView(Context c) {
         super(c);
-        track.setColor(Ui.SURFACE_EDGE);
-        fill.setColor(Ui.ACCENT);
+        track.setColor(Ui.surfaceEdge(getContext()));
+        fill.setColor(Ui.accent(getContext()));
     }
 
     void setFraction(float f) {

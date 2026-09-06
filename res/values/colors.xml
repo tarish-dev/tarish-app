@@ -1,12 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Tarish's palette, shared between the icon and Ui.java. Kept here as well as in Java
-  because resources cannot read a Java constant, and an icon that drifts from the app
-  it launches is worse than a duplicated hex string.
+  Tarish's SEMANTIC colours, light theme.
+
+  The raw brand ramps live in brand_ramps.xml exactly as the brand kit ships them; nothing
+  here invents a colour. This file only says which rung of which ramp plays which role, and
+  res/values-night/colors.xml answers the same questions for dark.
+
+  WHY NOT tokens/themes.xml FROM THE KIT: those declare parent="Theme.Material3.*", which
+  comes from the Material Components library. This app does not depend on it - it is a plain
+  AOSP app whose views are built in code - so the same tokens are expressed as colour
+  resources instead. The VALUES are the kit's, unchanged.
+
+  Ui.java reads these through Context.getColor, which is what makes light and dark work at
+  all: a static final int cannot follow the theme.
 -->
 <resources>
-    <color name="tarish_ink">#0A0A0C</color>
-    <color name="tarish_ink_lift">#17171D</color>
-    <color name="tarish_amber">#FFC531</color>
-    <color name="tarish_amber_deep">#E8A317</color>
+    <!-- Ground and raised surfaces. -->
+    <color name="t_bg">@color/basalt_50</color>
+    <color name="t_surface">@color/basalt_0</color>
+    <color name="t_surface_sunk">@color/basalt_100</color>
+    <color name="t_surface_edge">@color/basalt_300</color>
+    <color name="t_rule">@color/basalt_300</color>
+
+    <!--
+      Signal amber: the brand, the send action, active transfers.
+
+      Light uses signal_700 rather than the bright 300 the dark theme uses. Amber at full
+      brightness on a near-white ground fails contrast badly - the kit's own measured table
+      puts brand-on-ground at 4.86:1 for light using this rung, and it would be about 1.5:1
+      with signal_300.
+    -->
+    <color name="t_accent">@color/signal_700</color>
+    <color name="t_accent_fill">@color/signal_700</color>
+    <color name="t_accent_dim">@color/signal_100</color>
+    <color name="t_on_accent">@color/basalt_0</color>
+
+    <!-- Jade: received and complete. Never the brand. -->
+    <color name="t_live">@color/jade_700</color>
+
+    <!-- Ember: failures and destructive actions ONLY. -->
+    <color name="t_error">@color/ember_700</color>
+
+    <!-- Azure: informational, used sparingly. -->
+    <color name="t_info">@color/azure_700</color>
+
+    <color name="t_text">@color/basalt_900</color>
+    <color name="t_text_muted">@color/basalt_600</color>
+    <color name="t_text_faint">@color/basalt_500</color>
+
+    <!--
+      The launcher icon's own colours, which are NOT theme-dependent: an adaptive icon is
+      one artwork whatever the system theme is.
+    -->
+    <color name="tarish_ink">@color/basalt_950</color>
+    <color name="tarish_ink_lift">@color/basalt_900</color>
+    <color name="tarish_amber">@color/signal_300</color>
+    <color name="tarish_amber_deep">@color/signal_500</color>
 </resources>

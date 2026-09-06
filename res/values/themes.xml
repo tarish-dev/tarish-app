@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tarish's theme, light.
+
+  A PLAIN PARENT, not Theme.Material3. The kit's themes.xml uses a Material Components
+  parent, and this app does not depend on that library: its screens are built in code, not
+  inflated from layouts, so the only things a theme has to get right here are the window
+  background and the status/navigation bar contrast. Every colour comes from
+  res/values*/colors.xml, which holds the kit's own values.
+
+  The night variant is res/values-night/themes.xml. Without BOTH, the window background
+  stays one colour while Ui.java follows the theme, and the first frame of every screen
+  flashes the wrong ground.
+-->
+<resources>
+    <style name="Theme.Tarish" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">@color/t_bg</item>
+        <item name="android:colorBackground">@color/t_bg</item>
+        <item name="android:statusBarColor">@color/t_bg</item>
+        <item name="android:navigationBarColor">@color/t_bg</item>
+        <!-- Dark icons in both bars, because the ground behind them is near-white. -->
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <!--
+          NEVER let the system invert us. Force-dark takes a light theme and guesses a dark
+          one, and we ship a real one - so on a device with force-dark on, the guess would
+          fight res/values-night and produce colours in neither theme.
+        -->
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

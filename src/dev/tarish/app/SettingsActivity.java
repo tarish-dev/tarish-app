@@ -66,7 +66,7 @@ public final class SettingsActivity extends Activity {
         policy = store.effective();
 
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(Ui.BG);
+        scroll.setBackgroundColor(Ui.bg(this));
         scroll.setFitsSystemWindows(true);
 
         content = new LinearLayout(this);
@@ -137,13 +137,13 @@ public final class SettingsActivity extends Activity {
         }
         content.removeAllViews();
 
-        content.addView(Ui.text(this, "Settings", 26, Ui.TEXT, true));
+        content.addView(Ui.text(this, "Settings", 26, Ui.textColor(this), true));
         space(6);
 
         if (PolicyStore.anyManaged(policy)) {
             TextView note = Ui.text(this,
                     "Some settings are managed by your organization and cannot be changed here.",
-                    12, Ui.ACCENT, false);
+                    12, Ui.accent(this), false);
             note.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
             content.addView(note);
         }
@@ -160,12 +160,12 @@ public final class SettingsActivity extends Activity {
         // then a constant, and only it knows which one won.
         nameField.setHint(effectiveName());
         nameField.setSingleLine(true);
-        nameField.setTextColor(Ui.TEXT);
-        nameField.setHintTextColor(Ui.TEXT_FAINT);
+        nameField.setTextColor(Ui.textColor(this));
+        nameField.setHintTextColor(Ui.textFaint(this));
         nameField.setBackgroundColor(Color.TRANSPARENT);
         nameField.setEnabled(!policy.deviceNameManaged);
         if (policy.deviceNameManaged) {
-            nameField.setTextColor(Ui.TEXT_MUTED);
+            nameField.setTextColor(Ui.textMuted(this));
         }
         // NOT on every keystroke. The name lives in a `persist.` property, which is
         // written to disk, so pushing per character meant a disk write per character and
@@ -304,7 +304,7 @@ public final class SettingsActivity extends Activity {
         int p = Ui.dp(this, 12);
         row.setPadding(p, p, p, p);
 
-        TextView t = Ui.text(this, label, 15, enabled ? Ui.TEXT : Ui.TEXT_MUTED, false);
+        TextView t = Ui.text(this, label, 15, enabled ? Ui.textColor(this) : Ui.textMuted(this), false);
         row.addView(t, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -319,7 +319,7 @@ public final class SettingsActivity extends Activity {
     }
 
     private void caption(String s) {
-        TextView t = Ui.text(this, s, 11, Ui.TEXT_FAINT, false);
+        TextView t = Ui.text(this, s, 11, Ui.textFaint(this), false);
         t.setPadding(Ui.dp(this, 4), Ui.dp(this, 6), 0, 0);
         content.addView(t);
     }

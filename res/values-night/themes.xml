@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tarish's theme, dark - the default, and what this audience runs.
+
+  Same structure as res/values/themes.xml; see that file for why the parent is not Material3.
+-->
+<resources>
+    <style name="Theme.Tarish" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/t_bg</item>
+        <item name="android:colorBackground">@color/t_bg</item>
+        <item name="android:statusBarColor">@color/t_bg</item>
+        <item name="android:navigationBarColor">@color/t_bg</item>
+        <!-- Light icons: the ground is basalt_950. -->
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>
