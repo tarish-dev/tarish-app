@@ -325,7 +325,7 @@ final class QuickShareSender {
      * Move bytes between the Bluetooth socket and the daemon's socket, in both
      * directions, until either side closes.
      */
-    private static void pump(BluetoothSocket socket, ParcelFileDescriptor local) {
+    static void pump(BluetoothSocket socket, ParcelFileDescriptor local) {
         // ONE descriptor, TWO plain streams -- not two AutoClose streams.
         //
         // AutoCloseInputStream and AutoCloseOutputStream built from the same

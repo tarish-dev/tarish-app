@@ -14,5 +14,16 @@
           same permission Google grants their sharing app for the same reason.
         -->
         <permission name="android.permission.BLUETOOTH_PRIVILEGED"/>
+        <!--
+          The device's real Bluetooth Classic address, which goes INSIDE the Quick Share
+          endpoint advertisement so a sender knows what to dial for RFCOMM.
+
+          BLUETOOTH_PRIVILEGED is NOT enough for this. getAddress() returns the redacted
+          02:00:00:00:00:00 without LOCAL_MAC_ADDRESS, and an advertisement carrying that
+          is worse than none: a sender lists the device and cannot connect to it.
+
+          Read-only, and used for one field of one advertisement.
+        -->
+        <permission name="android.permission.LOCAL_MAC_ADDRESS"/>
     </privapp-permissions>
 </permissions>

@@ -20,6 +20,8 @@ import android.content.Intent;
 import android.os.IBinder;
 import android.util.Log;
 
+import dev.tarish.ITarishService;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -231,6 +233,33 @@ public final class TarishBleService extends Service {
         scanner = adapter.getBluetoothLeScanner();
         startAdvertising();
         startScanning();
+        // Quick Share receiving rides the same lifecycle: it wants the radio for exactly
+        // as long as the beacon does, and re-acquiring after an adapter cycle is the same
+        // problem with the same answer.
+        receiver.stop();
+        if (!receiver.start(adapter, service())) {
+            Log.w(TAG, "not reachable over Bluetooth for Quick Share");
+        }
+    }
+
+    /** Off-network Quick Share receiving: the BLE endpoint advertisement and RFCOMM. */
+    private final QuickShareReceiver receiver = new QuickShareReceiver();
+
+    /**
+     * The daemon, or null.
+     *
+     * Fetched rather than held: this runs after an adapter cycle, and a proxy taken before
+     * a daemon restart is dead in a way that fails silently -- the same trap TransferService
+     * hit, where callbacks simply stopped arriving.
+     */
+    private ITarishService service() {
+        try {
+            android.os.IBinder b = android.os.ServiceManager.getService(SERVICE_NAME);
+            return b == null ? null : ITarishService.Stub.asInterface(b);
+        } catch (Exception e) {
+            Log.w(TAG, "the daemon is not published", e);
+            return null;
+        }
     }
 
     private void startAdvertising() {
@@ -423,6 +452,10 @@ public final class TarishBleService extends Service {
         if (scanner != null) {
             scanner.stopScan(scanCallback);
         }
+        // Releases the RFCOMM listener too. Left running it would hold the service record
+        // after the app stopped being discoverable, so a sender could still connect to a
+        // device that is no longer offering to receive.
+        receiver.stop();
         super.onDestroy();
     }
 

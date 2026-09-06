@@ -43,6 +43,15 @@
     <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED" />
 
     <!--
+      The real Bluetooth address, for the Quick Share endpoint advertisement.
+
+      getAddress() returns 02:00:00:00:00:00 without this, and BLUETOOTH_PRIVILEGED does not
+      cover it. The address is a field inside the advertisement, so a redacted one produces a
+      device that senders can see and cannot connect to.
+    -->
+    <uses-permission android:name="android.permission.LOCAL_MAC_ADDRESS" />
+
+    <!--
       WI-FI IS A PRECONDITION, NOT A PREFERENCE.
 
       With Wi-Fi off, AWDL cannot start at all: the AWDL driver rides the Wi-Fi driver's
