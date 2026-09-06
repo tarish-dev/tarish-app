@@ -99,6 +99,26 @@
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation" />
 
+    <!--
+      SOCKETS. Without this, socket() itself fails with EPERM.
+
+      Socket creation is gated by the inet GID that this permission grants, so the failure
+      is not a connect that is refused: it is Os.socket() throwing before any address is
+      involved, which reads like a routing or firewall problem and is neither. The app never
+      needed it before because the daemon did all the networking.
+
+      It is needed now because a Wi-Fi Direct upgrade means the APP opens the TCP connection
+      to the group owner. The daemon cannot: Android routes by fwmark with a table per
+      network, an unmarked socket goes to the default network (which off-network is nothing
+      at all), and only the app can bind a socket to the P2P network the framework just
+      created. Same trap as the mosey0 routing, same answer: bind to the network, do not
+      assume an address is enough.
+
+      A normal permission, granted at install, and not the most powerful thing here by some
+      distance. If Wi-Fi Direct is ever dropped, this goes with it.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- BLE advertising is the discovery trigger; without it the device is invisible. -->
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
