@@ -147,6 +147,22 @@ public final class TransferService extends Service {
     }
 
     private void bind() {
+        // A LIVE BINDER, NOT MERELY A NON-NULL ONE.
+        //
+        // The daemon restarts -- every deploy does it, and it can crash -- and this held a
+        // proxy to the dead one. `service != null` returned early, registerCallback was
+        // never redone, and the service went silently DEAF: no onUpgradeNeeded, so a
+        // Wi-Fi Direct offer was never joined, and no onTransferFinished, so the previous
+        // transfer's group was never released. Nothing logged, because nothing failed --
+        // the callbacks simply stopped arriving.
+        //
+        // Normally invisible because a finished transfer calls stopSelf() and the next one
+        // binds fresh. It bites when a transfer does NOT finish: the instance survives, and
+        // every transfer after it is watched through a dead proxy.
+        if (service != null && !service.asBinder().pingBinder()) {
+            Log.w(TAG, "the daemon restarted under us; rebinding");
+            service = null;
+        }
         if (service != null) {
             return;
         }
