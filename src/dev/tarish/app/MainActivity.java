@@ -392,6 +392,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             content.addView(buildNoDaemonCard());
             return;
         }
+        View strip = protocolStrip();
+        if (strip != null) {
+            content.addView(strip);
+        }
         View blocked = blockedNotice();
         if (blocked != null) {
             content.addView(blocked);
@@ -443,27 +447,135 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * something the person can act on, "set by your organization" is something they
      * should stop trying to act on.
      */
+    /**
+     * Is `protocol` usable right now, in the direction this screen is showing?
+     *
+     * PER PROTOCOL. AirDrop and Quick Share carry independent modes, and one off with the
+     * other on is an ordinary configuration -- on a BCM4383 device AirDrop is switched
+     * off precisely so AWDL stops taking Wi-Fi down, and Quick Share then does the
+     * sharing. This read used to be policy.airdrop applied to everything, which cleared
+     * the Quick Share peer list along with it: the protocol that was still enabled looked
+     * broken, with the reason attributed to the wrong one.
+     *
+     * Direction matters too. Sending and receiving are separate grants, so a device may
+     * legitimately be able to receive over Quick Share and not send over it.
+     */
+    private boolean allowed(int protocol) {
+        if (policy == null) {
+            return false;
+        }
+        int mode = protocol == ITarishService.PROTOCOL_AIRDROP
+                ? policy.airdrop
+                : policy.quickshare;
+        return sendMode ? PolicyStore.allowsSend(mode) : PolicyStore.allowsReceive(mode);
+    }
+
+    /** Whether an administrator pinned this protocol, so the person cannot change it. */
+    private boolean managedProtocol(int protocol) {
+        if (policy == null) {
+            return false;
+        }
+        return protocol == ITarishService.PROTOCOL_AIRDROP
+                ? policy.airdropManaged
+                : policy.quickshareManaged;
+    }
+
+    /**
+     * What works right now, on the screen the person is already looking at.
+     *
+     * Two protocols with independent switches means "off" is never one fact about the
+     * app, and Settings is the wrong place to learn it: the question this answers -- why
+     * is there nothing here -- is asked on THIS screen, about a list that is empty or
+     * half as long as expected. So each protocol states its own case here, for the
+     * direction being shown.
+     *
+     * Always present, not only when something is wrong. A person who can see that Quick
+     * Share is on and AirDrop is off does not have to wonder whether an empty list means
+     * a policy or an empty room.
+     */
+    private View protocolStrip() {
+        if (policy == null) {
+            return null;
+        }
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, 0, 0, Ui.dp(this, 10));
+        row.addView(protocolChip(ITarishService.PROTOCOL_AIRDROP, "AirDrop"));
+        View gap = new View(this);
+        gap.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 7), 1));
+        row.addView(gap);
+        row.addView(protocolChip(ITarishService.PROTOCOL_QUICKSHARE, "Quick Share"));
+        return row;
+    }
+
+    private View protocolChip(int protocol, String label) {
+        boolean on = allowed(protocol);
+        boolean managed = managedProtocol(protocol);
+
+        LinearLayout chip = new LinearLayout(this);
+        chip.setOrientation(LinearLayout.HORIZONTAL);
+        chip.setGravity(Gravity.CENTER_VERTICAL);
+        int h = Ui.dp(this, 10);
+        int v = Ui.dp(this, 6);
+        chip.setPadding(h, v, h, v);
+        chip.setBackground(Ui.card(this, Ui.SURFACE_SUNK, Ui.RULE, 999));
+
+        chip.addView(Ui.dot(this, on ? Ui.LIVE : Ui.TEXT_FAINT, 6));
+        TextView t = Ui.text(this, label, 12, on ? Ui.TEXT : Ui.TEXT_FAINT, false);
+        LinearLayout.LayoutParams lp =
+                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.leftMargin = Ui.dp(this, 6);
+        t.setLayoutParams(lp);
+        chip.addView(t);
+
+        // Only annotate the off case, and only with something the person can act on.
+        // "Managed" tells them to stop trying; the absence of it means Settings will work.
+        if (!on) {
+            TextView why = Ui.text(this, managed ? "managed" : "off", 11, Ui.TEXT_FAINT, false);
+            LinearLayout.LayoutParams wp =
+                    new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT);
+            wp.leftMargin = Ui.dp(this, 5);
+            why.setLayoutParams(wp);
+            chip.addView(why);
+        }
+        if (!managed) {
+            chip.setOnClickListener(x ->
+                    startActivity(new android.content.Intent(this, SettingsActivity.class)));
+        }
+        return chip;
+    }
+
+    /**
+     * Shown only when NEITHER protocol can do what this screen is for.
+     *
+     * The per-protocol case is the strip's job. This card is for the state where the
+     * screen has nothing to offer at all, which is worth stating plainly rather than
+     * leaving as an empty list under two off chips.
+     */
     private View blockedNotice() {
         if (policy == null) {
             return null;
         }
-        boolean allowed = sendMode
-                ? PolicyStore.allowsSend(policy.airdrop)
-                : PolicyStore.allowsReceive(policy.airdrop);
-        if (allowed) {
+        if (allowed(ITarishService.PROTOCOL_AIRDROP)
+                || allowed(ITarishService.PROTOCOL_QUICKSHARE)) {
             return null;
         }
         String what = sendMode ? "Sending" : "Receiving";
-        String why = policy.airdropManaged
+        boolean bothManaged = managedProtocol(ITarishService.PROTOCOL_AIRDROP)
+                && managedProtocol(ITarishService.PROTOCOL_QUICKSHARE);
+        String why = bothManaged
                 ? what + " is turned off by your organization."
-                : what + " is turned off. Turn it on in Settings.";
+                : what + " is turned off for both protocols. Turn one on in Settings.";
 
         LinearLayout card = Ui.cardBox(this);
         TextView t = Ui.text(this, why, 13, Ui.ACCENT, false);
         int q = Ui.dp(this, 12);
         t.setPadding(q, q, q, q);
         card.addView(t);
-        if (!policy.airdropManaged) {
+        if (!bothManaged) {
             card.setOnClickListener(v ->
                     startActivity(new android.content.Intent(this, SettingsActivity.class)));
         }
@@ -1209,6 +1321,12 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // it is the enforcement point -- but a refusal here looks like a dead binder to
         // the caller below and triggers a pointless rebind. Turning visibility OFF is
         // never gated: policy restricts sharing, never the ability to stop.
+        //
+        // policy.airdrop, and NOT allowed(...), on purpose: setDiscoverable is AirDrop
+        // visibility specifically -- it governs the mDNS advertisement and the httpd that
+        // answers /Discover, and the daemon gates it on the AirDrop mode alone. Quick
+        // Share is advertised over BLE by a different component entirely. This is the one
+        // place in this file where reading one protocol's mode is the correct thing.
         if (visible && policy != null && !PolicyStore.allowsReceive(policy.airdrop)) {
             Log.i(TAG, "setDiscoverable(true) skipped from " + why + " — policy denies receive");
             return;
@@ -1382,10 +1500,14 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // device and picked files. Offering an action that is known to be refused is the
         // wrong place to enforce a policy.
         //
-        // The send screen carries the reason (see blockedNotice), so clearing the list
-        // leaves an explanation rather than an empty box. Returning before getPeers also
-        // stops asking the daemon to re-query for a list nobody may act on.
-        if (policy != null && !PolicyStore.allowsSend(policy.airdrop)) {
+        // PER PROTOCOL, and that distinction is the whole point. This tested
+        // policy.allowsSend(policy.airdrop) and cleared the ENTIRE list, so switching
+        // AirDrop off -- which is what a BCM4383 device wants, to stop AWDL taking Wi-Fi
+        // down -- also emptied the Quick Share list and reported it as sending being off.
+        // Peers are filtered by their own protocol below; the list only goes away when
+        // neither protocol may send, which blockedNotice explains.
+        if (!allowed(ITarishService.PROTOCOL_AIRDROP)
+                && !allowed(ITarishService.PROTOCOL_QUICKSHARE)) {
             if (!"blocked".equals(peerSignature)) {
                 peerSignature = "blocked";
                 peerBox.removeAllViews();
@@ -1409,9 +1531,15 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // look broken -- it is not a name, it is the absence of one.
         List<TarishPeer> named = new ArrayList<>();
         for (TarishPeer p : peers) {
-            if (p.name != null && !p.name.matches("[0-9a-f]{12}")) {
-                named.add(p);
+            if (p.name == null || p.name.matches("[0-9a-f]{12}")) {
+                continue;
             }
+            // A peer found by a protocol this device may not send over is not actionable,
+            // and the tile would fail at sendFiles. Dropped here rather than at the tap.
+            if (!allowed(p.protocol)) {
+                continue;
+            }
+            named.add(p);
         }
         peers = named.toArray(new TarishPeer[0]);
 
@@ -1433,6 +1561,12 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
         Collections.sort(rows);
         StringBuilder sig = new StringBuilder(shared.isEmpty() ? "gated\n" : "live\n");
+        // Policy is part of what the tiles are drawn from: switching a protocol off
+        // changes which peers belong on screen, and without this the unchanged peer set
+        // matched the old signature and the tiles were left as they were.
+        sig.append(allowed(ITarishService.PROTOCOL_AIRDROP) ? "a1" : "a0")
+                .append(allowed(ITarishService.PROTOCOL_QUICKSHARE) ? "q1" : "q0")
+                .append('\n');
         for (String r : rows) {
             sig.append(r).append('\n');
         }
