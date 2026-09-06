@@ -69,16 +69,24 @@ final class WifiDirectJoiner {
     private static final int MEDIUM_WIFI_DIRECT = 8;
 
     /**
-     * How long to wait for the group to form.
+     * The WHOLE budget for joining and connecting, counted from the moment we are asked.
      *
-     * The daemon gives us thirty seconds in total, so this has to leave room for the TCP
-     * connect inside it. Group formation was measured at 4-8 s on a Pixel; twenty catches
-     * a slow first-time driver init without spending the daemon's whole budget.
+     * ONE DEADLINE, NOT ONE PER STAGE. This was three independent timeouts -- 20s for the
+     * group, 5s for the connect listener, 10s for the socket -- which add to 35s against a
+     * daemon that gives up at 30s. Every stage could be inside its own limit while the whole
+     * thing was outside the only limit that matters, and the daemon would abandon a join
+     * that was about to succeed.
+     *
+     * Twenty-five seconds, so the answer always beats the daemon's wait with margin. Keep it
+     * BELOW await_upgrade's timeout in sharingd; if that changes, this changes.
      */
-    private static final long CONNECT_TIMEOUT_MS = 20_000;
+    private static final long JOIN_BUDGET_MS = 25_000;
 
-    /** Once the link is up the peer is already accepting, so this only covers the handshake. */
-    private static final int SOCKET_TIMEOUT_MS = 10_000;
+    /**
+     * The most any single stage may take, so one slow step cannot eat the whole budget and
+     * leave nothing for the rest. The real bound is always the deadline.
+     */
+    private static final long STAGE_CAP_MS = 15_000;
 
     /**
      * Wi-Fi Direct network names always begin this way. Checked because a name that does
@@ -132,8 +140,14 @@ final class WifiDirectJoiner {
         }
     }
 
+    /** Milliseconds left before the daemon stops waiting, capped so no stage hogs it. */
+    private static long remaining(long deadline) {
+        return Math.min(STAGE_CAP_MS, Math.max(0, deadline - android.os.SystemClock.elapsedRealtime()));
+    }
+
     private static ParcelFileDescriptor attempt(Context ctx, long transferId, TarishUpgrade up)
             throws Exception {
+        long deadline = android.os.SystemClock.elapsedRealtime() + JOIN_BUDGET_MS;
         if (up.medium != MEDIUM_WIFI_DIRECT) {
             // Hotspot (medium 3) reaches here as an ordinary access point and is not
             // implemented. Declining is correct rather than guessing at a join.
@@ -192,13 +206,12 @@ final class WifiDirectJoiner {
             // push a button for. Left at PBC so the platform does not raise a PIN prompt.
             config.wps.setup = WpsInfo.PBC;
 
-            if (!connect(manager, channel, config)) {
+            if (!connect(manager, channel, config, remaining(deadline))) {
                 return null;
             }
-            WifiP2pInfo info = watcher.await(CONNECT_TIMEOUT_MS);
+            WifiP2pInfo info = watcher.await(remaining(deadline));
             if (info == null) {
-                Log.w(TAG, "Wi-Fi Direct did not form a group within "
-                        + CONNECT_TIMEOUT_MS + "ms; declining");
+                Log.w(TAG, "Wi-Fi Direct did not form a group before the deadline; declining");
                 cancel(manager, channel);
                 return null;
             }
@@ -218,7 +231,7 @@ final class WifiDirectJoiner {
                 return null;
             }
 
-            ParcelFileDescriptor sock = connectSocket(target, up.port);
+            ParcelFileDescriptor sock = connectSocket(target, up.port, remaining(deadline));
             if (sock == null) {
                 cancel(manager, channel);
                 return null;
@@ -245,7 +258,7 @@ final class WifiDirectJoiner {
 
     /** Fire WifiP2pManager.connect and wait for its own success/failure, not for the link. */
     private static boolean connect(WifiP2pManager manager, WifiP2pManager.Channel channel,
-            WifiP2pConfig config) throws InterruptedException {
+            WifiP2pConfig config, long budgetMs) throws InterruptedException {
         final CountDownLatch done = new CountDownLatch(1);
         final boolean[] ok = {false};
         manager.connect(channel, config, new WifiP2pManager.ActionListener() {
@@ -261,7 +274,10 @@ final class WifiDirectJoiner {
         });
         // The listener is answered on the main looper and is quick. This bound only exists
         // so a listener that is never called cannot hold the transfer.
-        if (!done.await(5, TimeUnit.SECONDS)) {
+        // Answered on the main looper and quick. Bounded only so a listener that is never
+        // called cannot hold the transfer, and bounded by the SHARED budget so it cannot
+        // spend time the stages after it need.
+        if (!done.await(Math.min(5_000, budgetMs), TimeUnit.MILLISECONDS)) {
             Log.w(TAG, "WifiP2pManager.connect never answered; declining");
             return false;
         }
@@ -277,7 +293,7 @@ final class WifiDirectJoiner {
      * sit for the kernel's full retry schedule, which is minutes, and the daemon would give
      * up on us long before that.
      */
-    private static ParcelFileDescriptor connectSocket(InetAddress target, int port) {
+    private static ParcelFileDescriptor connectSocket(InetAddress target, int port, long budgetMs) {
         FileDescriptor fd = null;
         try {
             fd = Os.socket(
@@ -300,7 +316,7 @@ final class WifiDirectJoiner {
                 StructPollfd p = new StructPollfd();
                 p.fd = fd;
                 p.events = (short) OsConstants.POLLOUT;
-                int ready = Os.poll(new StructPollfd[] {p}, SOCKET_TIMEOUT_MS);
+                int ready = Os.poll(new StructPollfd[] {p}, (int) budgetMs);
                 if (ready == 0) {
                     Log.w(TAG, "connect to " + target + ":" + port + " timed out");
                     Os.close(fd);
