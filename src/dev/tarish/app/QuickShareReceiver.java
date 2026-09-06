@@ -112,7 +112,7 @@ final class QuickShareReceiver {
         }
 
         running = true;
-        acceptor = new Thread(() -> accept(service), "tarish-qs-accept");
+        acceptor = new Thread(this::accept, "tarish-qs-accept");
         acceptor.start();
 
         advertiser = adapter.getBluetoothLeAdvertiser();
@@ -148,10 +148,26 @@ final class QuickShareReceiver {
                 .setLegacyMode(false)
                 .setInterval(AdvertisingSetParameters.INTERVAL_LOW)
                 .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
-                // Connectable but NOT scannable: an extended advertisement may be one or the
-                // other, never both, and connectable is the one that matters -- a sender
-                // opens a GATT connection to some peers before falling back to Classic.
-                .setConnectable(true)
+                // NOT CONNECTABLE, and this is the difference between working and not.
+                //
+                // A connectable advertisement invites the sender to open a GATT connection,
+                // and once it has one its own medium layer refuses to open the Bluetooth
+                // Classic link it actually needs:
+                //
+                //     Reject the connection request for NearbySharing
+                //       because already has connection to XX:XX:XX:XX:8D:1A
+                //     Failed to connect to endpoint yOYC over medium BLUETOOTH
+                //
+                // From our side that is invisible -- the page never arrives, so the whole
+                // Bluetooth log is silent and the listener looks broken. It is not: the
+                // sender never dialled.
+                //
+                // Stock advertises the same way, which was in its log the whole time:
+                //   BleAdvertisingSetting{powerLevel=LOW_POWER, isConnectable=false, ...}
+                //
+                // An earlier version set this true, reasoning that a sender might open GATT
+                // before falling back to Classic. It does open GATT -- that is the problem.
+                .setConnectable(false)
                 .setScannable(false)
                 .build();
         setCallback = new AdvertisingSetCallback() {
@@ -170,7 +186,7 @@ final class QuickShareReceiver {
     }
 
     /** Accept connections until stopped. One transfer at a time, as the daemon expects. */
-    private void accept(ITarishService service) {
+    private void accept() {
         while (running) {
             BluetoothSocket socket;
             try {
@@ -182,6 +198,20 @@ final class QuickShareReceiver {
                 return;
             }
             Log.i(TAG, "a sender connected over RFCOMM");
+            // RESOLVED PER CONNECTION, not held. This listener outlives daemon restarts --
+            // every deploy is one -- and a proxy captured when advertising started throws
+            // DeadObjectException on the first transfer after, killing an inbound connection
+            // before the daemon ever hears about it.
+            ITarishService service = Daemon.get();
+            if (service == null) {
+                Log.w(TAG, "the daemon is not available; refusing the connection");
+                try {
+                    socket.close();
+                } catch (Exception ignored) {
+                    // Nothing else to do with it.
+                }
+                continue;
+            }
             ParcelFileDescriptor[] pair = null;
             try {
                 pair = ParcelFileDescriptor.createSocketPair();
@@ -240,6 +270,31 @@ final class QuickShareReceiver {
             }
             server = null;
         }
+        // AND WAIT FOR THE THREAD, or the old listener outlives us.
+        //
+        // Closing the socket does not retire its SDP record immediately, and this class is
+        // stopped and started again at boot -- the adapter-state broadcast arrives just
+        // after onCreate has already run. That left TWO RFCOMM records for one UUID:
+        //
+        //     STATE_LISTENING  RFCOMM  9   NearbySharing
+        //     STATE_LISTENING  RFCOMM  10  NearbySharing
+        //
+        // A sender resolves the service by UUID, picks one, and fails against the dead one --
+        // which it reports as "failed to connect to Bluetooth device", and the transfer sits
+        // at Connecting with nothing on our side to show for it.
+        if (acceptor != null) {
+            try {
+                acceptor.join(2_000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            acceptor = null;
+        }
+    }
+
+    /** Whether the listener is up, so a caller can avoid restarting it needlessly. */
+    boolean isRunning() {
+        return running;
     }
 
     private static void closeQuietly(ParcelFileDescriptor pfd) {

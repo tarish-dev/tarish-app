@@ -236,8 +236,11 @@ public final class TarishBleService extends Service {
         // Quick Share receiving rides the same lifecycle: it wants the radio for exactly
         // as long as the beacon does, and re-acquiring after an adapter cycle is the same
         // problem with the same answer.
-        receiver.stop();
-        if (!receiver.start(adapter, service())) {
+        // ONLY IF IT IS NOT ALREADY UP. This runs twice at boot -- once from onCreate and
+        // once from the adapter-state broadcast -- and restarting the listener each time
+        // left a second RFCOMM service record for the same UUID, which a sender can resolve
+        // to and then fail against. Nothing about a live listener needs replacing.
+        if (!receiver.isRunning() && !receiver.start(adapter, service())) {
             Log.w(TAG, "not reachable over Bluetooth for Quick Share");
         }
     }
@@ -253,13 +256,7 @@ public final class TarishBleService extends Service {
      * hit, where callbacks simply stopped arriving.
      */
     private ITarishService service() {
-        try {
-            android.os.IBinder b = android.os.ServiceManager.getService(SERVICE_NAME);
-            return b == null ? null : ITarishService.Stub.asInterface(b);
-        } catch (Exception e) {
-            Log.w(TAG, "the daemon is not published", e);
-            return null;
-        }
+        return Daemon.get();
     }
 
     private void startAdvertising() {

@@ -262,6 +262,11 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         public void onUpgradeNeeded(long id, dev.tarish.TarishUpgrade upgrade) {
         }
 
+        /** Also TransferService's, for the same reason as onUpgradeNeeded. */
+        @Override
+        public void onGroupNeeded(long id) {
+        }
+
         @Override
         public void onTransferFinished(long id, int status) {
             main.post(() -> {

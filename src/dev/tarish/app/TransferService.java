@@ -15,6 +15,7 @@ import android.util.Log;
 import dev.tarish.TarishPeer;
 import dev.tarish.ITarishCallback;
 import dev.tarish.ITarishService;
+import dev.tarish.TarishGroup;
 import dev.tarish.TarishUpgrade;
 
 /**
@@ -167,18 +168,23 @@ public final class TransferService extends Service {
             return;
         }
         try {
-            IBinder b = ServiceManager.getService(SERVICE_NAME);
-            service = b == null ? null : ITarishService.Stub.asInterface(b);
+            service = Daemon.get();
             if (service == null) {
                 Log.w(TAG, "the daemon is not published; no progress to show");
                 return;
             }
+            // Held here, unlike everywhere else, because the CALLBACK registration is what
+            // matters and re-registering per use would be wrong. The liveness check above is
+            // what keeps it honest.
             service.registerCallback(callback);
         } catch (Exception e) {
             Log.w(TAG, "could not follow the transfer", e);
             service = null;
         }
     }
+
+    /** Hosts a Wi-Fi Direct group when a sender asks for one. */
+    private final WifiDirectHost host = new WifiDirectHost();
 
     private final ITarishCallback.Stub callback = new ITarishCallback.Stub() {
         @Override public void onPeerFound(TarishPeer peer) {}
@@ -219,6 +225,35 @@ public final class TransferService extends Service {
             notifications.notify(ONGOING_ID, ongoing(done, total));
         }
 
+        /**
+         * A sender wants a faster network. Stand one up and hand it back.
+         *
+         * THE RECEIVING MIRROR of onUpgradeNeeded, and owned here for the same reason:
+         * forming a group takes seconds, and this component is the half that survives the
+         * activity going away.
+         */
+        @Override
+        public void onGroupNeeded(long id) {
+            if (id != transfer) {
+                return;
+            }
+            ITarishService svc = service;
+            if (svc == null) {
+                return;
+            }
+            new Thread(() -> {
+                TarishGroup group = host.create(TransferService.this);
+                try {
+                    svc.provideWifiDirectGroup(id, group);
+                } catch (Exception e) {
+                    Log.w(TAG, "could not answer the group request", e);
+                    // Release it: nothing is coming to use a group the daemon never heard
+                    // about, and it would hold the radio until the process dies.
+                    host.remove();
+                }
+            }, "tarish-wifi-direct-host").start();
+        }
+
         @Override
         public void onTransferFinished(long id, int status) {
             if (id != transfer) {
@@ -229,6 +264,9 @@ public final class TransferService extends Service {
             // so this is the only place that can end it -- and without it the device stays
             // associated to a one-off network after the files have gone.
             WifiDirectJoiner.release(id);
+            // And the group we may have hosted for an inbound transfer. Same reasoning as
+            // the joiner's: the radio is held until someone gives it back.
+            host.remove();
             transfer = 0;
             // Drops the ongoing notification with it, which is what should happen: the
             // outcome is a separate, dismissible one.
