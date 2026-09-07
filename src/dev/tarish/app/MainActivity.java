@@ -6,6 +6,9 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -1237,6 +1240,11 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         main.removeCallbacks(restoreRadios);
         promptForRadiosIfNeeded();
         setActive(true);
+        resumed = true;
+        // Sampling the band once at resume is not enough -- see associationWatcher.
+        registerReceiver(associationWatcher,
+                new IntentFilter(WifiManager.NETWORK_STATE_CHANGED_ACTION),
+                Context.RECEIVER_NOT_EXPORTED);
         // Re-read policy before acting on it: the user may have just come back from the
         // settings screen, or an administrator may have changed a managed value while
         // this activity was stopped. Both must take effect before we ask to be visible.
@@ -1257,6 +1265,12 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // The radio, unlike visibility, is released on leaving the foreground. The
         // daemon holds it for another half-minute so a file picker or a glance at
         // another app does not tear the link down and back up.
+        resumed = false;
+        try {
+            unregisterReceiver(associationWatcher);
+        } catch (IllegalArgumentException e) {
+            // Not registered: onPause can follow a failed onResume. Not worth a crash.
+        }
         setActive(false);
         stopService(new Intent(this, TarishBleService.class));
         askedAboutRadios = false;
@@ -1317,6 +1331,39 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             return 0;
         }
     }
+
+    /**
+     * Re-report the Wi-Fi frequency whenever the ASSOCIATION changes.
+     *
+     * setActive() carries the band, and it used to be called only from onResume -- so the
+     * frequency was sampled once, at whatever moment the screen happened to open. That is
+     * the worst possible moment: AWDL coming up can itself drop the association, so the
+     * app frequently resumed while Wi-Fi was down, read 0, and never corrected itself when
+     * Wi-Fi came back.
+     *
+     * 0 means "unknown", and tarishd then GUESSES the band. staFrequencyMhz() says what a
+     * wrong guess costs: the chip cannot hold two 5 GHz channels, so AWDL must go in the
+     * other band, and getting it wrong "drops the Wi-Fi association within about three
+     * seconds" -- which resumes the loop. Seen on hardware: blazer sat at sta_freq=0 with
+     * Wi-Fi demonstrably associated on 5520 MHz.
+     *
+     * WIFI_STATE_CHANGED_ACTION is not the one to watch, and Radios already has it: that
+     * fires for the adapter being switched on and off, not for joining a network or
+     * roaming to a different band. NETWORK_STATE_CHANGED_ACTION is the association.
+     */
+    private final BroadcastReceiver associationWatcher = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context c, Intent i) {
+            // Only while foreground: setActive(false) on pause told the daemon we are
+            // gone, and re-asserting active here would quietly undo that.
+            if (resumed) {
+                setActive(true);
+            }
+        }
+    };
+
+    /** True between onResume and onPause. Gates associationWatcher. */
+    private boolean resumed;
 
     private void setActive(boolean active) {
         if (service == null) {
