@@ -1235,7 +1235,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         if (service == null) {
             connect();
         }
-        startService(new Intent(this, TarishBleService.class));
+        startBeacon();
         // Cancel any pending restore: the user came back, so the radios stay as they are.
         main.removeCallbacks(restoreRadios);
         promptForRadiosIfNeeded();
@@ -1364,6 +1364,36 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
 
     /** True between onResume and onPause. Gates associationWatcher. */
     private boolean resumed;
+
+    /**
+     * Start the BLE beacon, and do not die if the system says we are background.
+     *
+     * TarishBleService is a PLAIN service on purpose -- the manifest calls it a privacy
+     * position: it runs between onResume and onPause and nothing advertises from boot.
+     * The consequence is that startService() throws BackgroundServiceStartNotAllowedException
+     * whenever the system still counts this uid as background, which happens even from
+     * onResume: an activity can be resumed a moment before the process is reclassified,
+     * and `am start` returns well before that.
+     *
+     * Unhandled, that exception escapes onResume and KILLS THE APP. Seen on both devices,
+     * repeatedly, at bg:+3m6s and bg:+11m0s -- and it takes Quick Share with it, because
+     * this service owns the BLE endpoint advertisement. Two Tarish devices then never
+     * discover each other, while a peer that advertises independently (a Windows desktop)
+     * is still found, which makes it look like a peer problem rather than ours.
+     *
+     * Refusing to start is the CORRECT outcome in that state, so the only bug was treating
+     * it as fatal. onResume runs again on the next foreground transition and the beacon
+     * comes up then.
+     */
+    private void startBeacon() {
+        try {
+            startService(new Intent(this, TarishBleService.class));
+        } catch (IllegalStateException e) {
+            // BackgroundServiceStartNotAllowedException extends IllegalStateException;
+            // catching the supertype also covers the pre-API-31 spelling.
+            Log.w(TAG, "beacon not started — system considers us background", e);
+        }
+    }
 
     private void setActive(boolean active) {
         if (service == null) {
