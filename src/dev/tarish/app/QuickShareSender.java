@@ -341,8 +341,9 @@ final class QuickShareSender {
         final java.io.FileOutputStream toDaemon =
                 new java.io.FileOutputStream(local.getFileDescriptor());
 
-        // Closed only when BOTH directions are done, so neither can pull the socket out
-        // from under the other.
+        // The PAIR is closed only when both directions are done, so neither pump thread can
+        // pull the descriptor out from under the other. The SOCKET is closed as soon as the
+        // daemon side ends -- see the daemon-to-peer thread below for why waiting leaked it.
         final java.util.concurrent.atomic.AtomicInteger running =
                 new java.util.concurrent.atomic.AtomicInteger(2);
         final Runnable finished = () -> {
@@ -388,11 +389,28 @@ final class QuickShareSender {
             } catch (Exception e) {
                 Log.d(TAG, "daemon -> peer ended: " + e.getMessage());
             } finally {
-                // The daemon has stopped talking. An RFCOMM socket cannot be half-closed
-                // -- BluetoothSocket exposes no shutdown -- so the peer only learns this
-                // when the pair is closed below. Dropping our read end is still worth
-                // doing: it unblocks this side if the daemon vanished without closing.
+                // THE DAEMON STOPPING MEANS THE TRANSFER IS OVER, SO CLOSE THE SOCKET.
+                //
+                // Waiting for both threads leaked the connection. This side ends when the
+                // daemon closes its end -- which is when serve() or the send returns, in
+                // either direction -- but the other thread is still blocked reading from a
+                // peer that has no reason to hang up. `running` never reached zero and the
+                // BluetoothSocket stayed open for the life of the process.
+                //
+                // That is what left a stock peer convinced it still had a link to us:
+                //
+                //     Reject the connection request for NearbySharing
+                //       because already has connection to XX:XX:XX:XX:8D:1A
+                //
+                // and it blocked every later transfer from that device until it was
+                // rebooted -- our leak, reported as the peer's refusal.
+                //
+                // Closing here is also what unblocks the other thread: its read throws,
+                // it unwinds, and `finished` is idempotent. An RFCOMM socket cannot be
+                // half-closed -- BluetoothSocket exposes no shutdown -- so a full close is
+                // the only way to tell the peer we are done.
                 shutdownQuietly(local, OsConstants.SHUT_RD);
+                closeQuietly(socket);
                 finished.run();
             }
         }, "tarish-qs-out").start();
