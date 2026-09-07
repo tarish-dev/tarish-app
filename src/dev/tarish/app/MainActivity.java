@@ -532,7 +532,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, 0, 0, Ui.dp(this, 10));
+        // The chips sat directly under the wordmark and read as part of the title block
+        // rather than as status about the device. The lockup needs air beneath it: the
+        // mark and the word are one object, and anything crowding them joins that object.
+        row.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 16));
         row.addView(protocolChip(ITarishService.PROTOCOL_AIRDROP, "AirDrop"));
         View gap = new View(this);
         gap.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 7), 1));
@@ -745,8 +748,14 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         if (!transportUp()) {
             setIdentityState("AirDrop radio unavailable \u2014 see Send screen", false);
         } else {
-            setIdentityState(discoverable ? "visible to everyone nearby" : "not visible",
-                             discoverable);
+            // SAY WHY, not just what. Bare "not visible" appears while sending -- which is
+            // correct, visibility is deliberately off in send mode -- but read against an
+            // incoming prompt on the same screen it looks like a contradiction. Naming the
+            // reason turns a puzzle into a statement.
+            setIdentityState(
+                    discoverable ? "visible to everyone nearby"
+                                 : (sendMode ? "not visible while sending" : "not visible"),
+                    discoverable);
         }
         return identity;
     }
@@ -787,7 +796,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         int p = Ui.dp(this, 14);
         row.setPadding(p, p, p, p);
 
-        TextView ext = Ui.text(this, extensionOf(f.name), 10, Ui.accent(this), true);
+        // Muted, not accent: the extension is a label, not an action, and colouring it
+        // amber put brand emphasis on "BIN".
+        TextView ext = Ui.text(this, extensionOf(f.name), 10, Ui.textMuted(this), true);
         ext.setGravity(Gravity.CENTER);
         ext.setLetterSpacing(0.06f);
         ext.setBackground(Ui.card(this, Ui.surfaceSunk(this), Ui.ruleColor(this), 8));
@@ -809,10 +820,14 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                             12, Ui.textFaint(this), false)));
         row.addView(col);
 
-        TextView open = Ui.text(this, "OPEN", 11, Ui.onAccent(this), true);
+        // QUIET. This was a filled amber button on every row, so three received files put
+        // three of the loudest thing on screen against one secondary action -- and a real
+        // transfer, which IS the amber thing, had to compete with them. Signal amber is
+        // the brand and the send action; spending it per inbox row spends it on nothing.
+        TextView open = Ui.text(this, "OPEN", 11, Ui.accent(this), true);
         open.setLetterSpacing(0.1f);
         open.setGravity(Gravity.CENTER);
-        open.setBackground(Ui.card(this, Ui.accent(this), Color.TRANSPARENT, 8));
+        open.setBackground(Ui.card(this, Color.TRANSPARENT, Ui.accent(this), 8));
         open.setPadding(Ui.dp(this, 14), Ui.dp(this, 8), Ui.dp(this, 14), Ui.dp(this, 8));
         open.setOnClickListener(v -> openFile(f));
         row.addView(open);
