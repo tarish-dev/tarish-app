@@ -7,11 +7,21 @@
   request them from a service that runs before anything is opened, so they are granted
   here.
 
-  Note this applies at FIRST INSTALL only. Flashing over an existing userdata keeps the
-  old grant state, so a device that had Tarish before this file existed needs the
-  permissions granted by hand or a wipe. That exact trap cost time with Google's
-  sharing app: the app crashed on a missing local-network permission that its own
-  default-permissions file was supposed to provide.
+  WHEN THIS FILE IS APPLIED, precisely - it is not "at first install", and the
+  difference matters. PackageManagerService re-runs the default-permission pass only when
+  it decides the device upgraded:
+
+      mIsUpgrade = !partitionsFingerprint.equals(ver.fingerprint)
+
+  So an image built with a STALE BUILD_NUMBER carries the fingerprint already on the
+  phone, is judged "not an upgrade", and every package added by that image arrives with
+  nothing granted. Tarish then died in TarishBleService.onCreate on a SecurityException
+  and crash-looped - "Tarish keeps stopping", with no way into the app to see why.
+  Always build with -b. BUILD-NOTES 30 and 55.
+
+  A grant that landed shows `flags=[ GRANTED_BY_DEFAULT ...]` in
+  `dumpsys package dev.tarish.app`. That flag is the proof it came from this file rather
+  than from someone running `pm grant`, which is otherwise indistinguishable.
 -->
 <exceptions>
     <exception package="dev.tarish.app">
@@ -21,5 +31,15 @@
         <permission name="android.permission.BLUETOOTH_ADVERTISE" fixed="false"/>
         <permission name="android.permission.BLUETOOTH_SCAN" fixed="false"/>
         <permission name="android.permission.BLUETOOTH_CONNECT" fixed="false"/>
+        <!--
+          WIFI DIRECT. WifiP2pManager refuses without it, so the bandwidth upgrade never
+          happens and an off-network transfer silently stays on Bluetooth: ~150 KB/s
+          instead of 10.5 MB/s, with nothing in the log saying why.
+
+          Missing from this list until it was caught on hardware - after a sideload every
+          other permission here came back GRANTED_BY_DEFAULT and this one did not.
+          Declared in the manifest is not granted.
+        -->
+        <permission name="android.permission.NEARBY_WIFI_DEVICES" fixed="false"/>
     </exception>
 </exceptions>
