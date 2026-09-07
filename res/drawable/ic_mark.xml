@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Tarish mark for a LIGHT ground, from the brand kit's logo/mark-on-light.svg.
+
+  A themed pair on purpose. The full-colour mark has a near-white card, and the guidelines
+  are explicit: do not place it on a ground where the white card stops separating. On
+  basalt_50 it would all but vanish. So light gets the dark-card variant and
+  res/drawable-night/ic_mark.xml gets the full-colour one.
+
+  Flat fills, no gradients - that is how the kit draws this variant.
+
+  The SVG viewBox starts at (10, 1.4); VectorDrawable has no viewBox offset, so the group
+  translates by the negative of it and the viewport is the box's size.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="27.6dp"
+    android:viewportWidth="75.2"
+    android:viewportHeight="86.6">
+    <group android:translateX="-10" android:translateY="-1.4">
+        <path
+            android:pathData="M18.5,38 H34 L48,52 V79.5 a8.5,8.5 0 0 1 -8.5,8.5 H18.5 a8.5,8.5 0 0 1 -8.5,-8.5 V46.5 a8.5,8.5 0 0 1 8.5,-8.5 Z"
+            android:fillColor="#181614"/>
+        <!-- The fold. Load-bearing: without it the card reads as a phone or a SIM. -->
+        <path android:pathData="M34,38 L48,52 L34,52 Z" android:fillColor="#36332E"/>
+        <path
+            android:pathData="M50.495,26.262 A12,12 0 0 1 59.971,37.163"
+            android:strokeColor="#EF9F0F" android:strokeWidth="8.5" android:strokeLineCap="round"/>
+        <path
+            android:pathData="M52.678,15.992 A22.5,22.5 0 0 1 70.445,36.430"
+            android:strokeColor="#EF9F0F" android:strokeWidth="8.5" android:strokeLineCap="round"/>
+        <path
+            android:pathData="M54.861,5.721 A33,33 0 0 1 80.920,35.698"
+            android:strokeColor="#EF9F0F" android:strokeWidth="8.5" android:strokeLineCap="round"/>
+    </group>
+</vector>

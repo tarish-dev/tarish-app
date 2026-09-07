@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Tarish mark for a DARK ground, from the brand kit's logo/mark.svg. See
+  res/drawable/ic_mark.xml for why there are two.
+
+  ONE DEVIATION FROM THAT FILE, DELIBERATELY. mark.svg fills the fold with url(#tf) and its
+  defs define only tp and tw - the tf gradient is missing, so a conforming renderer paints
+  that fold black or not at all. The kit's app-icon/ic_launcher_foreground.svg defines the
+  same gradient properly, so its values are used here: #B6AD9B to #9C9280. Worth reporting
+  upstream rather than carrying quietly.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="27.6dp"
+    android:viewportWidth="75.2"
+    android:viewportHeight="86.6">
+    <group android:translateX="-10" android:translateY="-1.4">
+        <path android:pathData="M18.5,38 H34 L48,52 V79.5 a8.5,8.5 0 0 1 -8.5,8.5 H18.5 a8.5,8.5 0 0 1 -8.5,-8.5 V46.5 a8.5,8.5 0 0 1 8.5,-8.5 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear"
+                    android:startX="17.6" android:startY="38"
+                    android:endX="40.4" android:endY="88">
+                    <item android:offset="0" android:color="#FFFFFF"/>
+                    <item android:offset="1" android:color="#DBD4C5"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path android:pathData="M34,38 L48,52 L34,52 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear"
+                    android:startX="34" android:startY="38"
+                    android:endX="48" android:endY="52">
+                    <item android:offset="0" android:color="#B6AD9B"/>
+                    <item android:offset="1" android:color="#9C9280"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path android:pathData="M50.495,26.262 A12,12 0 0 1 59.971,37.163"
+            android:strokeWidth="8.5" android:strokeLineCap="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient android:type="linear"
+                    android:startX="51.443" android:startY="26.262"
+                    android:endX="59.023" android:endY="37.163">
+                    <item android:offset="0" android:color="#FFDD93"/>
+                    <item android:offset="1" android:color="#EF9F0F"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path android:pathData="M52.678,15.992 A22.5,22.5 0 0 1 70.445,36.430"
+            android:strokeWidth="8.5" android:strokeLineCap="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient android:type="linear"
+                    android:startX="54.455" android:startY="15.992"
+                    android:endX="68.668" android:endY="36.430">
+                    <item android:offset="0" android:color="#FFDD93"/>
+                    <item android:offset="1" android:color="#EF9F0F"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path android:pathData="M54.861,5.721 A33,33 0 0 1 80.920,35.698"
+            android:strokeWidth="8.5" android:strokeLineCap="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient android:type="linear"
+                    android:startX="57.467" android:startY="5.721"
+                    android:endX="78.314" android:endY="35.698">
+                    <item android:offset="0" android:color="#FFDD93"/>
+                    <item android:offset="1" android:color="#EF9F0F"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+    </group>
+</vector>

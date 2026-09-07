@@ -358,13 +358,25 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             return insets;
         });
 
-        // Wordmark: bolt then lowercase name, tightly set. A plain title in the
+        // THE LOCKUP: the mark, then the lowercase name, tightly set. A plain title in the
         // system font is what every settings page looks like.
+        //
+        // This drew Glyph.Kind.BOLT -- a lightning bolt, which is the BARQ mark. Barq means
+        // lightning; tarish is the one you send with a message. The app was renamed and the
+        // artwork was not, so the header carried the old brand next to the new word.
+        //
+        // An ImageView with @drawable/ic_mark, not a Glyph: the mark is artwork with a fold
+        // and three gradient strokes, and it is themed -- the near-white card cannot sit on a
+        // light ground, so res/drawable-night holds the full-colour version and res/drawable
+        // the dark-card one. The resource system picks; nothing here has to know which.
         LinearLayout mark = new LinearLayout(this);
         mark.setGravity(Gravity.CENTER_VERTICAL);
-        Glyph bolt = new Glyph(this, Glyph.Kind.BOLT, Ui.accent(this));
+        android.widget.ImageView logo = new android.widget.ImageView(this);
+        logo.setImageResource(R.drawable.ic_mark);
+        // The mark is taller than it is wide (75.2 x 86.6), so give it that ratio rather than
+        // a square box, which would letterbox it and shrink the waves.
         int b = Ui.dp(this, 30);
-        mark.addView(bolt, new LinearLayout.LayoutParams(b, b));
+        mark.addView(logo, new LinearLayout.LayoutParams(Ui.dp(this, 26), b));
         TextView title = Ui.text(this, "tarish", 27, Ui.textColor(this), true);
         title.setLetterSpacing(-0.03f);
         title.setPadding(Ui.dp(this, 6), 0, 0, 0);

@@ -19,7 +19,7 @@ import android.view.View;
  */
 final class Glyph extends View {
 
-    enum Kind { BOLT, SWAP, DOWNLOAD, UPLOAD, LAPTOP, CHECK, GEAR }
+    enum Kind { SWAP, DOWNLOAD, UPLOAD, LAPTOP, CHECK, GEAR }
 
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -52,7 +52,6 @@ final class Glyph extends View {
         stroke.setStrokeWidth(s * 0.085f);
 
         switch (kind) {
-            case BOLT: bolt(canvas, cx, cy, s); break;
             case SWAP: swap(canvas, cx, cy, s); break;
             case DOWNLOAD: arrow(canvas, cx, cy, s, true); break;
             case UPLOAD: arrow(canvas, cx, cy, s, false); break;
@@ -79,19 +78,6 @@ final class Glyph extends View {
             c.drawLine(cx + dx * inner, cy + dy * inner,
                        cx + dx * outer, cy + dy * outer, stroke);
         }
-    }
-
-    private void bolt(Canvas c, float cx, float cy, float s) {
-        float w = s * 0.20f, h = s * 0.32f;
-        Path p = new Path();
-        p.moveTo(cx + w * 0.35f, cy - h);
-        p.lineTo(cx - w, cy + h * 0.10f);
-        p.lineTo(cx - w * 0.08f, cy + h * 0.10f);
-        p.lineTo(cx - w * 0.35f, cy + h);
-        p.lineTo(cx + w, cy - h * 0.14f);
-        p.lineTo(cx + w * 0.06f, cy - h * 0.14f);
-        p.close();
-        c.drawPath(p, fill);
     }
 
     /** Two arrows passing each other: the transfer mark. */

@@ -24,10 +24,13 @@ final class Ui {
     // Tarish's own look, not a copy of the reference it was measured against.
     //
     // That reference is soft: lavender, pill shapes, 26dp corners, everything floating
-    // in its own rounded card. Tarish is برق, lightning -- so this is the opposite
-    // register: near-black, amber, tight corners, hairline rules instead of cards, and
-    // uppercase micro-labels. It should read like an instrument rather than a settings
-    // page.
+    // in its own rounded card. Tarish is طارش, the one you send with a message - a courier -
+    // and the brand reads as infrastructure that works: basalt, Signal amber, tight corners,
+    // hairline rules instead of cards, uppercase micro-labels. It should read like an
+    // instrument rather than a settings page.
+    //
+    // An earlier version of this note said "Tarish is برق, lightning". That is barq, the
+    // name this app used to have; the sentence survived the rename and the mark did not.
 
     // COLOURS COME FROM RESOURCES, NOT FROM CONSTANTS.
     //
