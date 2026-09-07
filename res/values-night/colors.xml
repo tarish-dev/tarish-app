@@ -24,5 +24,18 @@
 
     <color name="t_text">@color/basalt_100</color>
     <color name="t_text_muted">@color/basalt_300</color>
-    <color name="t_text_faint">@color/basalt_500</color>
+    <!--
+      Faint steps UP the ramp in dark, to 400 - it is NOT the 500 the light theme uses.
+
+      Reusing the light rung was the bug, and it is the same mistake the accent comment in
+      res/values/colors.xml warns about, missed one row further down. basalt_500 is a MID
+      grey, so it is low-contrast against both ends of the ramp; it passes on a near-white
+      ground (5.06:1) purely because the ground is at one extreme, and against near-black
+      it measures 3.64:1 on the ground and 3.36:1 on a card. That is below 4.5:1, and this
+      token carries real text - file sizes and timestamps in the inbox.
+
+      basalt_400 measures 6.56:1 and 6.05:1, and stays clearly separated from muted
+      (basalt_300, 10.90:1), so the three-step text hierarchy survives.
+    -->
+    <color name="t_text_faint">@color/basalt_400</color>
 </resources>

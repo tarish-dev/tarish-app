@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  devices.svg from the brand kit, unchanged: 24px grid, 2px stroke, round caps and joins,
+  the same geometry as the mark's waves.
+
+  The kit's icons use stroke="currentColor" so they inherit text colour. A VectorDrawable
+  has no such thing, so the stroke is white here and Glyph applies the real colour with
+  setImageTintList - a tint is a SRC_IN colour filter over the whole drawable, which is
+  what reproduces currentColor. Do not hardcode a brand colour in this file; it has to
+  work in both themes and in whatever role the call site is using it for.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M3 6h8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z M16 9h5a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1Z M5 17h4"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

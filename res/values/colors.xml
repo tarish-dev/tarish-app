@@ -19,6 +19,21 @@
     <color name="t_bg">@color/basalt_50</color>
     <color name="t_surface">@color/basalt_0</color>
     <color name="t_surface_sunk">@color/basalt_100</color>
+    <!--
+      Hairlines are DELIBERATELY quiet - do not "fix" these to pass 3:1.
+
+      Measured, they are 1.79:1 against a card and 1.69:1 against the ground (1.43 and 1.55
+      in dark). That looks like a WCAG 1.4.11 failure and is not one: the criterion covers
+      visual information needed to IDENTIFY a component or its state, and explicitly exempts
+      decoration. These rules group rows and edge cards; nothing about them says what a
+      control is or what state it is in. The brand's whole surface language is hairlines
+      instead of cards, and raising them to 3:1 would read as a table grid.
+
+      Where a boundary IS the only thing identifying a control, it needs its own treatment
+      rather than a louder global rule. The one to watch is the PIN field, whose fill
+      (surface_sunk) sits very close to the ground - the 32sp mono hint "0000" is doing most
+      of the work of saying "type here". Worth a look on a real screen.
+    -->
     <color name="t_surface_edge">@color/basalt_300</color>
     <color name="t_rule">@color/basalt_300</color>
 

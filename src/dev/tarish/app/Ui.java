@@ -282,6 +282,25 @@ final class Ui {
         return t;
     }
 
+    /**
+     * Tabular figures on text that keeps the UI font.
+     *
+     * <p>For numbers inside a sentence — "3.4 MB of 21.6 MB" — where switching family
+     * would be louder than the number deserves, but proportional digits still make the
+     * whole line twitch on every update, and a column of sizes fail to line up. `tnum`
+     * fixes the widths and changes nothing else.
+     *
+     * <p>The kit assigns JetBrains Mono to codes, ids, hashes and sizes. No font is
+     * bundled — the kit ships none, and its own type table says the Android app uses the
+     * platform font — so the rule is applied by ROLE: the platform's monospace where a
+     * string is a code being compared against another screen (the PIN entry), and tabular
+     * figures where a number lives in a sentence or a column.
+     */
+    static <T extends TextView> T tabular(T t) {
+        t.setFontFeatureSettings("tnum");
+        return t;
+    }
+
     /** A rounded surface with a hairline edge, used for cards and chips. */
     static GradientDrawable card(Context c, int fill, int stroke, float radiusDp) {
         GradientDrawable d = new GradientDrawable();

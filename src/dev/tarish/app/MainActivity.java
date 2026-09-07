@@ -801,8 +801,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         n.setMaxLines(1);
         n.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
         col.addView(n);
-        col.addView(Ui.text(this, Ui.size(f.bytes) + "  ·  " + ago(f.receivedAt),
-                            12, Ui.textFaint(this), false));
+        // Tabular so the sizes line up down the column instead of ragging.
+        col.addView(Ui.tabular(Ui.text(this, Ui.size(f.bytes) + "  ·  " + ago(f.receivedAt),
+                            12, Ui.textFaint(this), false)));
         row.addView(col);
 
         TextView open = Ui.text(this, "OPEN", 11, Ui.onAccent(this), true);
@@ -930,7 +931,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, Ui.dp(this, 12), 0, 0);
-        progressLabel = Ui.text(this, "", 13, Ui.textMuted(this), false);
+        // Tabular: this counts up several times a second, and proportional digits make
+        // the whole line jump sideways on every tick.
+        progressLabel = Ui.tabular(Ui.text(this, "", 13, Ui.textMuted(this), false));
         LinearLayout.LayoutParams tp =
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         progressLabel.setLayoutParams(tp);
@@ -996,6 +999,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         pinEntry.setTextSize(32);
         pinEntry.setGravity(Gravity.CENTER);
         pinEntry.setLetterSpacing(0.4f);
+        // A pairing code, which the kit sets in mono for a reason that matters here more
+        // than anywhere else: the code is being COMPARED against a second screen, digit by
+        // digit, and proportional digits shift the four positions as each one is typed.
+        pinEntry.setTypeface(android.graphics.Typeface.MONOSPACE);
         pinEntry.setTextColor(Ui.textColor(this));
         pinEntry.setHintTextColor(Ui.textFaint(this));
         pinEntry.setBackground(Ui.card(this, Ui.surfaceSunk(this), Ui.ruleColor(this), 14));
@@ -1640,12 +1647,26 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     /**
-     * Apple peers are the only kind Tarish talks to today, so everything is a device
-     * glyph rather than pretending to distinguish phone from laptop — which we cannot:
-     * AirDrop's mDNS records carry no device type, only a name learned from /Discover.
+     * The device glyph, chosen from what the peer actually told us and nothing else.
+     *
+     * <p>AirDrop peers carry no device type at all: the mDNS TXT record holds only
+     * {@code flags}, and /Discover answers with a name. So an Apple peer gets the general
+     * devices mark, which is the honest answer rather than a guess dressed as detail.
+     *
+     * <p>Quick Share peers DO advertise a type — three bits in the first byte of the
+     * endpoint info — and the daemon decodes it. It does not yet forward it: {@code model}
+     * arrives empty for both protocols today (see main.rs, where TarishPeer is built), so
+     * this reads a field that is currently always blank. That is deliberate. The mapping
+     * belongs on the UI side, and when the daemon fills {@code model} in the icons become
+     * accurate with no change here. Do not invent a type from the peer's NAME to fill the
+     * gap — "K-N6" and "K-ProArt" are what a person typed, not what the device is.
      */
     private static Glyph.Kind glyphFor(TarishPeer p) {
-        return Glyph.Kind.LAPTOP;
+        String model = p.model == null ? "" : p.model.toLowerCase(java.util.Locale.ROOT);
+        if (model.contains("phone") || model.contains("foldable")) {
+            return Glyph.Kind.PHONE;
+        }
+        return Glyph.Kind.DEVICE;
     }
 
     /** The protocol that found this peer, named for a person rather than for a log. */
