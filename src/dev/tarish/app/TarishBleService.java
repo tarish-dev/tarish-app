@@ -216,11 +216,55 @@ public final class TarishBleService extends Service {
      * The handles are re-fetched every time on purpose: one held across an adapter
      * cycle is stale, and using it fails quietly rather than throwing.
      */
+    /**
+     * Bring the radio up, and NEVER throw doing it.
+     *
+     * Every caller is a lifecycle callback -- onCreate, onStartCommand, the adapter-state
+     * broadcast -- and an exception escaping any of them kills the process. The permission
+     * check above is the expected path; this catch is for the gap between checking and
+     * calling, which a runtime revoke can land in, and for anything the framework decides
+     * to throw that we did not anticipate. A dead beacon is a degraded app. A dead process
+     * is no app.
+     */
     private void acquireAndStart() {
+        try {
+            acquireAndStartOrThrow();
+        } catch (SecurityException e) {
+            Log.w(TAG, "radio permission refused at the call — no beacon", e);
+        } catch (RuntimeException e) {
+            Log.e(TAG, "could not bring the radio up", e);
+        }
+    }
+
+    private void acquireAndStartOrThrow() {
         BluetoothManager manager = getSystemService(BluetoothManager.class);
         BluetoothAdapter adapter = manager != null ? manager.getAdapter() : null;
         if (adapter == null || !adapter.isEnabled()) {
             Log.w(TAG, "Bluetooth is off — no beacon until it is enabled");
+            return;
+        }
+        String missing = missingRadioPermission();
+        if (missing != null) {
+            // EXACTLY as survivable as Bluetooth being off, and it used to kill the app.
+            //
+            // startAdvertising() throws SecurityException when the permission is not held,
+            // and this runs from onCreate, so the throw escaped handleCreateService and
+            // took down the process -- repeatedly, because the service restarts. The user
+            // sees "Tarish keeps stopping" and no part of the app is reachable, including
+            // the screen that would explain why.
+            //
+            // Tarish is a system app and these permissions are PRE-GRANTED -- by
+            // system_ext/etc/default-permissions/default-permissions-dev.tarish.app.xml.
+            // It should never prompt, and this is not a fallback for a missing prompt.
+            //
+            // It is a guard against the pre-grant not having run, which is a real state:
+            // PackageManagerService applies default grants only when it decides the device
+            // upgraded, and that decision is
+            //     mIsUpgrade = !partitionsFingerprint.equals(ver.fingerprint)
+            // so an image built with a STALE BUILD_NUMBER carries the fingerprint already
+            // on the phone, is judged "not an upgrade", and its newly added system packages
+            // get nothing granted. Seen on hardware; BUILD-NOTES 30 and 55.
+            Log.w(TAG, "no " + missing + " — no beacon until it is granted");
             return;
         }
         if (advertising && advertiser != null) {
@@ -243,6 +287,26 @@ public final class TarishBleService extends Service {
         if (!receiver.isRunning() && !receiver.start(adapter, service())) {
             Log.w(TAG, "not reachable over Bluetooth for Quick Share");
         }
+    }
+
+    /**
+     * The first radio permission we need and do not hold, or null when all are present.
+     *
+     * Checked rather than caught so the log names the missing one: "permission denied" with
+     * no name sends you looking through three candidates.
+     */
+    private String missingRadioPermission() {
+        String[] needed = {
+            android.Manifest.permission.BLUETOOTH_ADVERTISE,
+            android.Manifest.permission.BLUETOOTH_SCAN,
+            android.Manifest.permission.BLUETOOTH_CONNECT,
+        };
+        for (String p : needed) {
+            if (checkSelfPermission(p) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                return p.substring(p.lastIndexOf('.') + 1);
+            }
+        }
+        return null;
     }
 
     /** Off-network Quick Share receiving: the BLE endpoint advertisement and RFCOMM. */
