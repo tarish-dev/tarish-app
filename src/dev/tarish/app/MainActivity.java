@@ -576,9 +576,21 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             why.setLayoutParams(wp);
             chip.addView(why);
         }
+        // TOGGLE IN PLACE, rather than sending the person to Settings to flip one switch
+        // they are already looking at. The chip states the protocol and its state, so it
+        // is the natural control for it.
+        //
+        // MANAGED STAYS LOCKED. An administrator's choice is not a default to be nudged:
+        // when the field is pinned there is deliberately no listener at all, so the chip
+        // does not depress, does not animate, and does nothing -- and the "managed" label
+        // beside it already says why. Do not add a toast or a dialog here; a control that
+        // reacts and then refuses is worse than one that plainly cannot be used.
         if (!managed) {
-            chip.setOnClickListener(x ->
-                    startActivity(new android.content.Intent(this, SettingsActivity.class)));
+            chip.setOnClickListener(x -> toggleProtocol(protocol));
+            chip.setOnLongClickListener(x -> {
+                startActivity(new android.content.Intent(this, SettingsActivity.class));
+                return true;
+            });
         }
         return chip;
     }
@@ -745,7 +757,13 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         col.addView(stateLine);
         identity.addView(col);
         // Re-state what is actually true, rather than a default that may already be wrong.
-        if (!transportUp()) {
+        // POLICY BEATS THE RADIO in the explanation, because only one of them is the
+        // person's own doing. With AirDrop switched off the chip said "off" while this
+        // line still said "AirDrop radio unavailable" -- two explanations for one
+        // protocol, side by side, disagreeing about whose decision it was. If they turned
+        // it off, say that; the radio is not the reason and mentioning it invites them to
+        // go looking for a fault that is not there.
+        if (!transportUp() && allowed(ITarishService.PROTOCOL_AIRDROP)) {
             setIdentityState("AirDrop radio unavailable \u2014 see Send screen", false);
         } else {
             // SAY WHY, not just what. Bare "not visible" appears while sending -- which is
@@ -1171,6 +1189,31 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * @return true if a usable binding exists afterwards
      */
     /** Re-read policy from preferences and managed configuration, and send it down. */
+    /**
+     * Flip one protocol between off and on, from its chip.
+     *
+     * ON means MODE_BOTH rather than restoring whatever the mode was before. Half-states
+     * (receive-only, send-only) exist and are reachable from Settings, but a one-tap
+     * control that lands on one of them cannot explain itself -- the chip would read "on"
+     * while sending silently failed. Off/on here; nuance in Settings, one long-press away.
+     *
+     * Writes the USER preference and re-pushes. It never overrides a managed value: this
+     * is only reachable when the field is unpinned, and PolicyStore.effective() would
+     * discard it regardless.
+     */
+    private void toggleProtocol(int protocol) {
+        if (policyStore == null) {
+            policyStore = new PolicyStore(this);
+        }
+        boolean on = allowed(protocol);
+        policyStore.setUserMode(PolicyStore.keyFor(protocol),
+                on ? ITarishService.MODE_OFF : ITarishService.MODE_BOTH);
+        pushPolicy();
+        // The strip, the visibility line and the peer list all read policy.
+        render();
+        setDiscoverable(!sendMode, "protocolToggle");
+    }
+
     private void pushPolicy() {
         if (policyStore == null) {
             policyStore = new PolicyStore(this);

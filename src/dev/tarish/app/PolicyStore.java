@@ -136,6 +136,11 @@ final class PolicyStore {
         }
     }
 
+    /** The preference key for a protocol, so a caller need not know the string. */
+    static String keyFor(int protocol) {
+        return protocol == ITarishService.PROTOCOL_AIRDROP ? K_AIRDROP : K_QUICKSHARE;
+    }
+
     /** Record a user choice. Ignored for a field an administrator has pinned. */
     void setUserMode(String key, int mode) {
         prefs().edit().putInt(key, mode).apply();
