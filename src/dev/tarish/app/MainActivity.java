@@ -235,8 +235,23 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         @Override
         public void onTransferProgress(long id, long done, long total) {
             main.post(() -> {
+                // ADOPT A TRANSFER NOBODY ANNOUNCED.
+                //
+                // With require_confirmation off the daemon accepts without asking, so
+                // there is no onTransferOffered and activeTransfer is still 0. Progress
+                // for an unknown id used to be dropped here, which made an auto-accepted
+                // receive completely silent: no progress, no sign of anything happening,
+                // and the file simply appeared in the inbox when it was already done.
+                //
+                // Bytes arriving ARE the announcement in that case. Only while RECEIVING:
+                // an unknown id during a send is not ours to adopt, and taking it over
+                // would point the progress bar at someone else's transfer.
                 if (id != activeTransfer) {
-                    return;
+                    if (activeTransfer == 0 && !sendMode) {
+                        activeTransfer = id;
+                    } else {
+                        return;
+                    }
                 }
                 showProgress(total > 0
                         ? Ui.size(done) + " of " + Ui.size(total)

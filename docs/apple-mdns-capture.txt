@@ -1,0 +1,434 @@
+dumping mDNS on mosey0 (idx 52) for 35s
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 36 bytes from fe80::8896:b2ff:fed4:9ed4  qd=1 an=0 ns=0 ar=0
+    Q  A      c66a180ad90e.local
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 36 bytes from fe80::8896:b2ff:fed4:9ed4  qd=1 an=0 ns=0 ar=0
+    Q  A      c66a180ad90e.local
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 189 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=3 ns=0 ar=0
+    A  PTR    _airdrop._tcp.local -> dumpcheck42._airdrop._tcp.local
+    A  SRV    dumpcheck42._airdrop._tcp.local -> dumpcheck42.local:8770
+    A  AAAA   dumpcheck42.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 189 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=3 ns=0 ar=0
+    A  PTR    _airdrop._tcp.local -> dumpcheck42._airdrop._tcp.local
+    A  SRV    dumpcheck42._airdrop._tcp.local -> dumpcheck42.local:8770
+    A  AAAA   dumpcheck42.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 189 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=3 ns=0 ar=0
+    A  PTR    _airdrop._tcp.local -> dumpcheck42._airdrop._tcp.local
+    A  SRV    dumpcheck42._airdrop._tcp.local -> dumpcheck42.local:8770
+    A  AAAA   dumpcheck42.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 189 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=3 ns=0 ar=0
+    A  PTR    _airdrop._tcp.local -> dumpcheck42._airdrop._tcp.local
+    A  SRV    dumpcheck42._airdrop._tcp.local -> dumpcheck42.local:8770
+    A  AAAA   dumpcheck42.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 189 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=3 ns=0 ar=0
+    A  PTR    _airdrop._tcp.local -> dumpcheck42._airdrop._tcp.local
+    A  SRV    dumpcheck42._airdrop._tcp.local -> dumpcheck42.local:8770
+    A  AAAA   dumpcheck42.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 189 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=3 ns=0 ar=0
+    A  PTR    _airdrop._tcp.local -> dumpcheck42._airdrop._tcp.local
+    A  SRV    dumpcheck42._airdrop._tcp.local -> dumpcheck42.local:8770
+    A  AAAA   dumpcheck42.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 189 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=3 ns=0 ar=0
+    A  PTR    _airdrop._tcp.local -> dumpcheck42._airdrop._tcp.local
+    A  SRV    dumpcheck42._airdrop._tcp.local -> dumpcheck42.local:8770
+    A  AAAA   dumpcheck42.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 189 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=3 ns=0 ar=0
+    A  PTR    _airdrop._tcp.local -> dumpcheck42._airdrop._tcp.local
+    A  SRV    dumpcheck42._airdrop._tcp.local -> dumpcheck42.local:8770
+    A  AAAA   dumpcheck42.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 474 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _appsvcprepair._tcp.local
+    A  PTR    _appsvcprepair._tcp.local -> k-mbprom5._appsvcprepair._tcp.local
+    A  TXT    k-mbprom5._appsvcprepair._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][dnm=K-MBProM5][_dc=1]
+    A  SRV    k-mbprom5._appsvcprepair._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55565
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+--- 520 bytes from fe80::8896:b2ff:fed4:9ed4  qd=0 an=4 ns=0 ar=1
+    A  PTR    _services._dns-sd._udp.local -> _applicationservicepairing._tcp.local
+    A  PTR    _applicationservicepairing._tcp.local -> k-mbprom5._applicationservicepairing._tcp.local
+    A  TXT    k-mbprom5._applicationservicepairing._tcp.local -> [sn=com.apple.sharingd.AirDrop][at=004eb9b20bd5][sid=AA6F93C8-6AD0-4A80-BD07-A63F9A5CD692][_dc=1]
+    A  SRV    k-mbprom5._applicationservicepairing._tcp.local -> add68ee6-83c7-446b-a0bb-d256bd2df210.local:55566
+    A  AAAA   add68ee6-83c7-446b-a0bb-d256bd2df210.local -> fe80::8896:b2ff:fed4:9ed4
+done — 76 packet(s)
