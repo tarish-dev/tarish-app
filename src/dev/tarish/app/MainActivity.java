@@ -27,6 +27,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -414,6 +415,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private void render() {
         content.removeAllViews();
         nav.setMode(sendMode);
+        // Every path that changes the mode or the policy comes through here, so this is
+        // the one place the screen-awake decision has to be made.
+        keepScreenAwake();
         // NO DAEMON, NO APP. Say so, rather than showing an empty device list.
         //
         // Without this the screen is truthful and useless: no peers, not discoverable,
@@ -500,6 +504,35 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 ? policy.airdrop
                 : policy.quickshare;
         return sendMode ? PolicyStore.allowsSend(mode) : PolicyStore.allowsReceive(mode);
+    }
+
+    /**
+     * Hold the screen awake while this device is waiting to receive.
+     *
+     * WITHOUT THIS, "leave it on receive" silently stops working. The screen times out,
+     * the activity pauses, onPause drops AirDrop visibility and stops the Quick Share BLE
+     * advertiser, and the phone becomes undiscoverable -- while the policy still reads
+     * airdrop=3 and mosey0 lingers, so nothing about the device looks wrong from the
+     * inside. Reported from the field as AirDrop timing out and needing a restart, and
+     * reproduced by letting the screen blank: the peer vanished from the other device's
+     * list within seconds.
+     *
+     * Every automated test missed it because the harness runs `svc power stayon usb`, so
+     * the screen never slept in any of them.
+     *
+     * Only while RECEIVING, and only while some protocol actually permits it. Sending is
+     * a person standing at the phone, and a screen held awake for a mode that can receive
+     * nothing is battery spent for no reason.
+     */
+    private void keepScreenAwake() {
+        boolean waiting = !sendMode
+                && (allowed(ITarishService.PROTOCOL_AIRDROP)
+                    || allowed(ITarishService.PROTOCOL_QUICKSHARE));
+        if (waiting) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
     }
 
     /** Whether an administrator pinned this protocol, so the person cannot change it. */
@@ -770,8 +803,11 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             // correct, visibility is deliberately off in send mode -- but read against an
             // incoming prompt on the same screen it looks like a contradiction. Naming the
             // reason turns a puzzle into a statement.
+            // SAY THE SCREEN IS BEING HELD AWAKE. Waiting to receive keeps the display on
+            // (see keepScreenAwake), and a phone whose screen will not sleep with no
+            // explanation reads as a fault. One clause turns it into a statement.
             setIdentityState(
-                    discoverable ? "visible to everyone nearby"
+                    discoverable ? "visible to everyone nearby — screen stays on"
                                  : (sendMode ? "not visible while sending" : "not visible"),
                     discoverable);
         }
@@ -1514,8 +1550,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 visibleSince = System.currentTimeMillis();
             }
             if (!sendMode) {
-                setIdentityState(visible ? "visible to everyone nearby" : "not visible",
-                                 visible);
+                setIdentityState(
+                        visible ? "visible to everyone nearby — screen stays on"
+                                : "not visible",
+                        visible);
             }
         } catch (Exception e) {
             Log.w(TAG, "setDiscoverable failed, rebinding", e);
@@ -1526,8 +1564,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                     if (visible) {
                         visibleSince = System.currentTimeMillis();
                     }
-                    setIdentityState(visible ? "visible to everyone nearby" : "not visible",
-                                     visible);
+                    setIdentityState(
+                            visible ? "visible to everyone nearby — screen stays on"
+                                    : "not visible",
+                            visible);
                     return;
                 } catch (Exception again) {
                     Log.e(TAG, "still cannot reach the daemon", again);
