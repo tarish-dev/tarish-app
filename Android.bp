@@ -13,6 +13,26 @@ android_app {
     srcs: ["src/**/*.java"],
     resource_dirs: ["res"],
 
+    // debug/ IS NOT UNDER src/, AND THAT IS THE POINT.
+    //
+    // DebugBridge opens a local socket that can start a transfer, which is not something a
+    // shell on a production device should be able to do — the same reasoning that keeps
+    // tarishctl out of a user build. So it is compiled in only when the build is
+    // debuggable, and MainActivity reaches it by name so its absence is ordinary rather
+    // than a compile error.
+    //
+    // The first attempt kept it under src/ and listed it in exclude_srcs, adding it back
+    // here. That silently produced a build with the CLASS MISSING and everything else
+    // intact: Soong gathers srcs and applies exclude_srcs afterwards, so the exclusion
+    // wins and the product variable never gets a say. The symptom was a bridge that never
+    // started and logged nothing, because the reflective call swallows the absence by
+    // design. Keeping the file outside the default glob means nothing has to be excluded.
+    product_variables: {
+        debuggable: {
+            srcs: ["debug/**/*.java"],
+        },
+    },
+
     // The IPC contract lives with the daemon, which is the server. The app consumes
     // those files rather than carrying a copy that can drift.
     static_libs: ["dev.tarish-java"],

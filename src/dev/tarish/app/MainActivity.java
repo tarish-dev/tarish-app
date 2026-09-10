@@ -319,6 +319,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        startDebugBridge();
         radios = new Radios(this);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         if (getActionBar() != null) {
@@ -547,6 +548,34 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         } else {
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+    }
+
+    /**
+     * Open the shell control channel, on a debuggable build only.
+     *
+     * REFLECTIVELY, and that is the point. Bluetooth and Wi-Fi Direct sends are framework
+     * API the daemon cannot reach, so an end-to-end harness has no way to drive them and
+     * reported both as SKIP in every run — two transports never exercised against real
+     * hardware. DebugBridge is the way in.
+     *
+     * It is excluded from a user build by Android.bp, so the class is simply not there.
+     * Naming it directly would stop this file compiling; going through Class.forName means
+     * the absence is ordinary rather than fatal. DebugBridge checks Build.IS_DEBUGGABLE
+     * again on its own, and SELinux gates the socket a third time.
+     */
+    private void startDebugBridge() {
+        if (!android.os.Build.IS_DEBUGGABLE) {
+            return;
+        }
+        try {
+            Class.forName("dev.tarish.app.DebugBridge")
+                    .getDeclaredMethod("start")
+                    .invoke(null);
+        } catch (ClassNotFoundException absent) {
+            // A debuggable build that was compiled without it. Nothing to say.
+        } catch (Throwable t) {
+            Log.w(TAG, "debug bridge did not start", t);
         }
     }
 
