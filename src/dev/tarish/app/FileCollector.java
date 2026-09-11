@@ -1,8 +1,10 @@
 package dev.tarish.app;
 
 import android.content.ContentResolver;
+import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Environment;
 import android.os.ParcelFileDescriptor;
@@ -12,6 +14,7 @@ import android.util.Log;
 import dev.tarish.ITarishService;
 
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -94,6 +97,7 @@ final class FileCollector {
                 return null;
             }
             ContentResolver resolver = context.getContentResolver();
+            dropStaleRows(resolver, name);
 
             ContentValues values = new ContentValues();
             values.put(MediaStore.Downloads.DISPLAY_NAME, name);
@@ -123,15 +127,21 @@ final class FileCollector {
                 }
             }
 
-            values.clear();
-            values.put(MediaStore.Downloads.IS_PENDING, 0);
-            resolver.update(dest, values, null, null);
+            String stored = publish(resolver, dest, name);
+            if (stored == null) {
+                // Thrown rather than returned so the pending row below is cleaned up and
+                // the daemon keeps its copy for the next attempt.
+                throw new IOException("MediaStore would not publish " + name
+                        + " under any name");
+            }
 
             // Only now is it safe to drop the daemon's copy: if anything above failed,
-            // the file is still in the inbox and the next attempt can retry it.
+            // the file is still in the inbox and the next attempt can retry it. This
+            // takes the name the daemon knows the file by, NOT the name it was stored
+            // under -- publish() renames around a collision and the two can differ.
             service.deleteReceivedFile(name);
-            Log.i(TAG, "stored " + name + " (" + copied + " bytes) in " + DEST_DIR);
-            return new Stored(name, copied, dest);
+            Log.i(TAG, "stored " + stored + " (" + copied + " bytes) in " + DEST_DIR);
+            return new Stored(stored, copied, dest);
 
         } catch (IOException | RuntimeException e) {
             Log.e(TAG, "could not store " + name, e);
@@ -148,5 +158,107 @@ final class FileCollector {
             Log.e(TAG, "binder failure collecting " + name, e);
             return null;
         }
+    }
+
+    /**
+     * Removes rows that point at a file which is no longer there.
+     *
+     * <p>MediaStore keeps the row and the file in separate places and they can
+     * disagree: delete a received file from outside the app and the row survives,
+     * still owning the path. The next file of the same name then inserts cleanly,
+     * copies every byte, and fails at the very last step -- clearing IS_PENDING
+     * renames the file onto the path the dead row holds, and the provider answers
+     *
+     * <pre>SQLiteConstraintException: UNIQUE constraint failed: files._data</pre>
+     *
+     * which used to be caught, logged and dropped. The transfer had succeeded and the
+     * file simply never appeared.
+     *
+     * <p>MediaStore's own de-duplication does not cover this, because it looks at the
+     * filesystem: it finds no file, so it does not rename, and the collision is with a
+     * row rather than with a file.
+     *
+     * <p>This app holds no storage permission, so the query returns only rows it owns
+     * itself -- it cannot see, let alone delete, something another app put there.
+     */
+    private static void dropStaleRows(ContentResolver resolver, String name) {
+        String[] projection = { MediaStore.Downloads._ID };
+        String selection = MediaStore.Downloads.RELATIVE_PATH + "=? AND "
+                + MediaStore.Downloads.DISPLAY_NAME + "=?";
+        // MediaStore normalises RELATIVE_PATH with a trailing slash; without it the
+        // selection matches nothing and this quietly does no work at all.
+        String[] args = { DEST_DIR + "/", name };
+
+        try (Cursor c = resolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                projection, selection, args, null)) {
+            if (c == null) {
+                return;
+            }
+            while (c.moveToNext()) {
+                Uri row = ContentUris.withAppendedId(
+                        MediaStore.Downloads.EXTERNAL_CONTENT_URI, c.getLong(0));
+                try (ParcelFileDescriptor open = resolver.openFileDescriptor(row, "r")) {
+                    // The file is really there, so this is an ordinary duplicate name.
+                    // Leave it alone: MediaStore will store ours as "name (1)" the way
+                    // it does for any other download.
+                } catch (FileNotFoundException gone) {
+                    // Opening it is the only existence check available -- with no
+                    // storage permission the app cannot stat the path itself.
+                    Log.i(TAG, "dropping a stale MediaStore row for " + name);
+                    try {
+                        resolver.delete(row, null, null);
+                    } catch (RuntimeException refused) {
+                        Log.w(TAG, "could not drop the stale row for " + name, refused);
+                    }
+                } catch (IOException closing) {
+                    // close() failing says nothing about whether the row is stale.
+                }
+            }
+        } catch (RuntimeException e) {
+            Log.w(TAG, "could not check MediaStore for stale rows for " + name, e);
+        }
+    }
+
+    /**
+     * Clears IS_PENDING, which is what actually moves the file onto its final path.
+     *
+     * @return the name it was stored under -- not always the name asked for -- or null
+     *     if no name worked.
+     */
+    private static String publish(ContentResolver resolver, Uri dest, String name) {
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Downloads.IS_PENDING, 0);
+        try {
+            resolver.update(dest, values, null, null);
+            return name;
+        } catch (RuntimeException taken) {
+            // A row still holds this path and dropStaleRows() could not remove it --
+            // it belongs to another app. Renaming is the only way through, and a file
+            // under a slightly different name beats a file the user never sees.
+            Log.w(TAG, "the name " + name + " is spoken for; renaming", taken);
+        }
+
+        for (int i = 1; i <= 32; i++) {
+            String alt = suffixed(name, i);
+            values.clear();
+            values.put(MediaStore.Downloads.DISPLAY_NAME, alt);
+            values.put(MediaStore.Downloads.IS_PENDING, 0);
+            try {
+                resolver.update(dest, values, null, null);
+                return alt;
+            } catch (RuntimeException alsoTaken) {
+                // Try the next one.
+            }
+        }
+        return null;
+    }
+
+    /** {@code report.pdf} -> {@code report (2).pdf}, matching how MediaStore renames. */
+    private static String suffixed(String name, int n) {
+        int dot = name.lastIndexOf('.');
+        if (dot <= 0) {
+            return name + " (" + n + ")";
+        }
+        return name.substring(0, dot) + " (" + n + ")" + name.substring(dot);
     }
 }
