@@ -1487,7 +1487,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * visibility would take it down under every outgoing transfer.
      */
     /**
-     * The frequency Wi-Fi is associated on, in MHz, or 0 if it is not.
+     * The frequency Wi-Fi is associated on in MHz, 0 if it is not associated, or -1
+     * if the adapter is off altogether. The three are different to the daemon: see the
+     * band-memory note in the body.
      *
      * The daemons cannot answer this. Both are native, neither has framework access,
      * and the association frequency is not exposed as a file either could read -- so
@@ -1502,6 +1504,27 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             WifiManager wm = getSystemService(WifiManager.class);
             if (wm == null) {
                 return 0;
+            }
+            // WI-FI OFF IS NEWS. NOT KNOWING IS NOT.
+            //
+            // The daemon remembers the last real frequency and treats 0 as "no news",
+            // because on a chip where AWDL and Wi-Fi cannot coexist, raising AWDL
+            // destroys the very association the value is read from -- and forgetting
+            // the band there puts two devices on opposite ones.
+            //
+            // But a switched-off adapter is not that. There is no association to
+            // protect and none coming back, so the memory is simply wrong, and it is
+            // wrong in the expensive direction: it keeps AWDL in the OTHER band from a
+            // network this device is not on. Measured on frankel with Wi-Fi off --
+            // tarishd logged "Wi-Fi is on 5520 MHz -- putting AWDL in the other band,
+            // [6]" and ran AirDrop on channel 6 at 0.87 MB/s, having refused 149 and 44
+            // to protect an association that did not exist.
+            //
+            // isWifiEnabled() is the user's setting, not the link state, so it stays
+            // true exactly through the case the memory is for. -1 says "off"; an older
+            // daemon clamps it to 0 and behaves as it always did.
+            if (!wm.isWifiEnabled()) {
+                return -1;
             }
             WifiInfo info = wm.getConnectionInfo();
             if (info == null) {
