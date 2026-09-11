@@ -59,6 +59,58 @@ Waiting prompt.
 whether capabilities matter at all. Stacking more plist keys on an unverified theory is how
 this stays open for another week.
 
+### Off-network: the sender delivers, the receiver gets a reset
+
+**Where it stands.** Quick Share between two devices with no shared network now negotiates
+the whole way: BLE discovery, RFCOMM bootstrap, UKEY2, offer and acceptance, and a Wi-Fi
+Direct upgrade with a real group. The sender then transfers the file **and reports success**:
+
+```
+sender    sent offnet8.bin (2097152 bytes in 0.3s, 6949 KB/s)
+          transfer 3 complete
+receiver  the sender joined from 192.168.49.147:35036
+          upgraded the inbound transfer to Wi-Fi Direct
+          inbound transfer 1 failed: Connection reset by peer (os error 104)
+```
+
+**Zero bytes land.** The sender writes 2 MB into the upgraded channel in 0.3s, declares the
+transfer complete, and the receiver's read is reset.
+
+**The likely mechanism, not yet proven.** This project has already solved this shape once,
+in `httpd.rs`:
+
+> Closing with unread bytes in the receive buffer makes the kernel send RST rather than FIN,
+> and a client that gets RST discards the response it already received.
+
+A sender that blasts 2 MB and closes while the peer still has unread bytes — or unsent ones
+of its own — produces exactly an abortive close. `finish_cleanly()` already distinguishes
+safe-disconnect v1 peers from v0 ones, and the log reads this peer as `safe-disconnect v1`,
+so that ordering is worth re-reading against what actually goes out on the **upgraded**
+channel rather than the bootstrap one.
+
+**Worth checking first:** whether the receiver is reading the NEW channel at all, or still
+the old one. The handover releases the prior channel on the sending side (`released the old
+channel`); the receiving side's equivalent is where a reset would surface if it were reading
+a socket the sender has already abandoned.
+
+**Do not re-derive these.** Three fixes already landed here and each was real:
+
+- `MainActivity.onGroupNeeded` was an empty method, so nobody hosted a group and nothing
+  transferred off-network at all
+- `WifiDirectHost.create()` was not idempotent, so a second caller destroyed a group the
+  peer had already joined
+- `provide_group` accepted answers nobody asked for, leaving a stale value that made the
+  receiver stand up a second listener and wait for a join that had already happened
+
+And three TEST-SETUP errors that cost time and each looked like a product bug:
+
+- "off-network" means Wi-Fi **on but unjoined**. Disabling the radio also disables Wi-Fi
+  Direct, so the group can never form
+- AWDL on the sender does **not** block the upgrade — identical byte counts across two runs
+  disproved it
+- a harness calling `QuickShareSender.send()` without `TransferService.watch()` drives a
+  different code path from the share sheet, because TransferService owns `onUpgradeNeeded`
+
 ### refreshPeers: the button does nothing, and the first diagnosis was wrong
 
 The control is wired, the app's call returns without throwing, and the daemon appears
