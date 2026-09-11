@@ -36,6 +36,7 @@ import dev.tarish.TarishPeer;
 import dev.tarish.TarishStatus;
 import dev.tarish.ITarishCallback;
 import dev.tarish.ITarishService;
+import dev.tarish.TarishGroup;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -92,6 +93,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * what was reported. See Radios.
      */
     private Radios radios;
+    /** Hosts the Wi-Fi Direct group an inbound transfer asks for. See onGroupNeeded. */
+    private final WifiDirectHost wifiDirectHost = new WifiDirectHost();
 
     /** Set once per foreground visit, so a declined prompt is not asked again immediately. */
     private boolean askedAboutRadios;
@@ -284,10 +287,53 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         /** Also TransferService's, for the same reason as onUpgradeNeeded. */
         @Override
         public void onGroupNeeded(long id) {
+            // ANSWER, ALWAYS. This was an empty stub, and silence is not free.
+            //
+            // Receiving off-network makes this device the ADVERTISER, and the advertiser
+            // hosts the Wi-Fi Direct group — the discoverer only joins. So an inbound
+            // transfer that wants to stop crawling over Bluetooth parks here waiting for
+            // us, and an empty body means it waits the whole timeout and then asks again.
+            //
+            // Measured with both phones off-network: the daemon logged "no client answered
+            // the group request; staying put" every 30s and the payload never moved at
+            // all. Not slow — nothing. The interface says so in as many words: "ANSWER
+            // EITHER WAY. The inbound transfer is parked waiting for this, and a client
+            // that simply does not reply costs it the timeout before it carries on."
+            //
+            // TransferService also implements this and is the right owner once a transfer
+            // has a notification, but it answers only for the id it is tracking and
+            // returns silently otherwise — so on the receive path nobody was answering.
+            //
+            // Off the main thread: forming a group is 4-8s on real hardware and slower on
+            // a cold driver, and this is a binder callback.
+            ITarishService svc = service;
+            if (svc == null) {
+                return;
+            }
+            new Thread(() -> {
+                TarishGroup group = null;
+                try {
+                    group = wifiDirectHost.create(MainActivity.this);
+                } catch (Throwable t) {
+                    Log.w(TAG, "could not host a Wi-Fi Direct group", t);
+                }
+                try {
+                    // null is a real answer, and the one that matters here: it tells the
+                    // daemon to stop waiting and carry on over Bluetooth immediately.
+                    svc.provideWifiDirectGroup(id, group);
+                } catch (Exception e) {
+                    Log.w(TAG, "could not answer the group request", e);
+                }
+            }, "tarish-group-host").start();
         }
 
         @Override
         public void onTransferFinished(long id, int status) {
+            // A GROUP LEFT UP HOLDS THE RADIO, and keeps the device on a network that
+            // exists for nobody. The interface is explicit that teardown is the client's,
+            // and onTransferFinished is where the client learns it is over. Off the main
+            // thread and outside the post: this is cleanup, not UI.
+            new Thread(wifiDirectHost::remove, "tarish-group-release").start();
             main.post(() -> {
                 activeTransfer = 0;
                 offerId = 0;   // whatever happened, the question is answered

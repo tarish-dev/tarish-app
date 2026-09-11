@@ -41,6 +41,8 @@ final class WifiDirectHost {
     private WifiP2pManager manager;
     private WifiP2pManager.Channel channel;
     private ConnectionWatcher watcher;
+    /** The group currently hosted, or null. See the idempotence note on create(). */
+    private TarishGroup current;
 
     /**
      * Create the group and describe it. Blocks until it forms or the wait runs out.
@@ -54,6 +56,25 @@ final class WifiDirectHost {
         none.passphrase = "";
         none.goAddress = "";
         none.frequency = 0;
+
+        // ALREADY HOSTING? HAND BACK THE SAME GROUP.
+        //
+        // Two components answer the daemon's request for one — TransferService, and
+        // MainActivity when the service is not tracking that transfer. Without this,
+        // the second caller's remove() below tears down a group the peer has ALREADY
+        // JOINED, and the transfer dies on the network it just moved onto:
+        //
+        //     the sender joined from 192.168.49.121:48780
+        //     upgraded the inbound transfer to Wi-Fi Direct
+        //     released the Wi-Fi Direct group              <- 9ms later
+        //     inbound transfer failed: Software caused connection abort (os error 103)
+        //
+        // Measured exactly so. A group is a network, not a per-transfer resource, and
+        // handing back the live one is both correct and what the second caller wanted.
+        if (current != null && current.ssid != null && !current.ssid.isEmpty()) {
+            Log.i(TAG, "already hosting " + current.ssid + "; reusing it");
+            return current;
+        }
 
         // Any previous group first. A stale one makes createGroup fail with BUSY, and the
         // failure names nothing that points at the real cause.
@@ -107,6 +128,8 @@ final class WifiDirectHost {
             out.frequency = group.getFrequency();
             Log.i(TAG, "hosting " + out.ssid + " on " + out.goAddress
                     + " at " + out.frequency + " MHz");
+            // Remembered so a second caller reuses this group rather than replacing it.
+            current = out;
             return out;
         } catch (Exception e) {
             Log.w(TAG, "could not host a group", e);
@@ -117,6 +140,7 @@ final class WifiDirectHost {
 
     /** Tear the group down. Safe when there is none. */
     synchronized void remove() {
+        current = null;
         if (manager == null || channel == null) {
             return;
         }

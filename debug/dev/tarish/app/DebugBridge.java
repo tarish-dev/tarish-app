@@ -120,6 +120,17 @@ final class DebugBridge {
         out.flush();
     }
 
+    /**
+     * The application context, without holding a reference to any Activity.
+     *
+     * TransferService.watch needs one, and this class is started reflectively with no
+     * arguments so it has none. ActivityThread.currentApplication() is the standard way in
+     * from a system app and cannot go stale the way a cached Activity would.
+     */
+    private static android.content.Context context() {
+        return android.app.ActivityThread.currentApplication();
+    }
+
     private static String run(String line) throws Exception {
         String[] a = line.split("\\s+", 3);
         String cmd = a.length > 0 ? a[0] : "";
@@ -177,7 +188,27 @@ final class DebugBridge {
                         peer,
                         new ParcelFileDescriptor[]{pfd},
                         new String[]{f.getName()});
-                return id == 0 ? "error send refused" : ("id " + id);
+                if (id == 0) {
+                    return "error send refused";
+                }
+                // START THE SERVICE, AS THE SHARE SHEET DOES.
+                //
+                // Not decoration. TransferService owns onUpgradeNeeded — MainActivity
+                // deliberately leaves it empty, because the service is the half that
+                // survives the activity going away and joining a group twice would tear
+                // down the first one. So without this, nobody answers when the peer offers
+                // a Wi-Fi Direct group: the daemon waits out its timeout and the transfer
+                // crawls on Bluetooth.
+                //
+                // Measured before this line existed: the receiver hosted a group, the
+                // sender logged "asking the app to join", and thirty seconds later
+                // "peer accepted, sending" — a timeout, not an answer. 2 MB then took
+                // 171s at 12 KB/s.
+                //
+                // A harness that drives a different code path from the product measures
+                // the harness. This makes the two agree.
+                TransferService.watch(context(), id, "debug bridge", true);
+                return "id " + id;
             }
 
             default:
