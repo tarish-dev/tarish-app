@@ -17,7 +17,7 @@
   phone, is judged "not an upgrade", and every package added by that image arrives with
   nothing granted. Tarish then died in TarishBleService.onCreate on a SecurityException
   and crash-looped - "Tarish keeps stopping", with no way into the app to see why.
-  Always build with -b. BUILD-NOTES 30 and 55.
+  Always build with a fresh BUILD_NUMBER.
 
   A grant that landed shows `flags=[ GRANTED_BY_DEFAULT ...]` in
   `dumpsys package dev.tarish.app`. That flag is the proof it came from this file rather

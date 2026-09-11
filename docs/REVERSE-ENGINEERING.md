@@ -81,8 +81,8 @@ debugged at the endpoints instead.
 
 | Layer | State | Where |
 |---|---|---|
-| AWDL bring-up | working from our own process, no Google packages | grapheneos `docs/OWL-PATH.md` |
-| `libmosey` FFI | 5 symbols, `mosey_start_5` signature confirmed by calling it | grapheneos `docs/MOSEY-ABI.md` |
+| AWDL bring-up | working from our own process, no Google packages | [MOSEY-FFI.md](MOSEY-FFI.md) |
+| `libmosey` FFI | 5 symbols, `mosey_start_5` signature confirmed by calling it | [MOSEY-FFI.md](MOSEY-FFI.md) |
 | mDNS records | verified byte-for-byte against Mosey | [AIRDROP-DISCOVERY.md](AIRDROP-DISCOVERY.md) |
 | BLE beacon layout | Apple mfg data `0x004C`, type `0x05`, 4x 2-byte SHA-256 slots | tarish-app `docs/BLE-DISCOVERY.md` |
 | BLE advertise + scan | working; two Apple devices observed beaconing | tarish-app |

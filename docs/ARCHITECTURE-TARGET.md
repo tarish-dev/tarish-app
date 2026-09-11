@@ -62,7 +62,7 @@ Bada already demonstrates: an ordinary app doing this protocol with no platform 
 | `/data/misc/tarish/inbox`, its init mkdir and chmod | somewhere 0700 to stage files |
 | the binder hop that copies files out, and most of `FileCollector` | crossing from uid 7500 to the app |
 | `patches/packages_modules_Connectivity/*` | **a native daemon can never earn local-network access** -- the BPF bit is derived from installed packages. An app has one |
-| the AID/patch consistency check in `gos-tarish.sh` | keeping 7500 agreeing in two places |
+| the integrator's check that the AID and the patch agree | keeping 7500 agreeing in two places |
 
 The received-file path today is `daemon → /data/misc/tarish/inbox (0700) → binder → app →
 Downloads/Tarish → MediaStore`. In the target it is: the app writes where it received. Two

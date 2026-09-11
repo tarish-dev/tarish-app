@@ -1,7 +1,7 @@
 # Tarish
 
-**AirDrop and Quick Share on Android, with no Google Play Services — sandboxed or
-otherwise — and no Google account.**
+**File sharing for Android that works with AirDrop and Quick Share, with no Google Play
+Services — sandboxed or otherwise — and no Google account.**
 
 Send a file to a MacBook from a phone that has never spoken to Google. The Mac shows a real
 device name and a normal AirDrop prompt; the phone shows a normal share sheet. Send to a
@@ -321,3 +321,7 @@ AirDrop looks like on the wire. Full credits: [docs/CREDITS.md](docs/CREDITS.md)
 ## Licence
 
 Apache 2.0. See [LICENSE](LICENSE).
+
+AirDrop is a trademark of Apple Inc., registered in the U.S. and other countries and regions.
+Quick Share, Android and Pixel are trademarks of their respective owners. Tarish is an
+independent project and is not affiliated with or endorsed by Apple, Google or Samsung.

@@ -297,7 +297,7 @@ for radiotap — rather than from the STA frequency alone.
 sets and will not discover each other. Apple peers hop both (an iPhone splits 4/16 slots
 across 149 and 6), so AirDrop to the devices this is FOR still works; it is Tarish-to-
 Tarish AirDrop between the two chips that breaks, and Quick Share already covers
-Android-to-Android better. Not changed unilaterally — the trade is the operator's.
+Android-to-Android better. Not changed unilaterally — the trade is the maintainer's.
 
 ### AWDL and Wi-Fi cannot run together on BCM4383, and the fallback hides it
 
@@ -306,8 +306,8 @@ Android-to-Android better. Not changed unilaterally — the trade is the operato
 The coexistence work landed and is verified on BCM**4390** (mustang): AWDL goes in the
 opposite band from the Wi-Fi association and both run indefinitely. On BCM**4383**
 (frankel) the same code picks the right band and Wi-Fi dies anyway, does not recover
-when AWDL stops, survives a Wi-Fi toggle, and needs a reboot. Full measurements in the
-BUILD-NOTES 40 of the OS integration.
+when AWDL stops, survives a Wi-Fi toggle, and needs a reboot. The measurements are
+summarised under Devices in the README.
 
 The difference is `wondertap`. 4390 exposes it, so `wonder.ko` binds and the Netlink
 path drives a real `wonder` wiphy. 4383 does not, so tarishd falls back to driving
@@ -668,8 +668,7 @@ for probe.bin` / `stored probe.bin (2097152 bytes)` and drained the inbox.
 ### The payload ran over Bluetooth — SOLVED, it runs over Wi-Fi Direct now
 
 **Closed.** Kept because the wrong turns in it are the useful part; the outcome is
-in the summary at the top of the Done section, and the mechanism in grapheneos
-docs/BUILD-NOTES.md 47-52.
+in the summary at the top of the Done section.
 
 Quick Share sends work, and they are slow: ~126 KB/s for a 2.7 MB file on frankel. That is
 not the send window and not the framing. **It is the medium.**
@@ -716,8 +715,7 @@ flight keeps the radio busy, but the radio is the ceiling.
 ### Cancelling — SOLVED, and it was a reporting bug, not a recovery bug
 
 **Closed.** Kept because the wrong turns in it are the useful part; the outcome is
-in the summary at the top of the Done section, and the mechanism in grapheneos
-docs/BUILD-NOTES.md 47-52.
+in the summary at the top of the Done section.
 
 Reported from real use 2026-09-05, after PIN entry, wrong-PIN and both-sides cancel were
 otherwise tested and working.
@@ -772,8 +770,7 @@ for how the others should read.
 ### Quick Share to a stock Android peer — SOLVED, both directions
 
 **Closed.** Kept because the wrong turns in it are the useful part; the outcome is
-in the summary at the top of the Done section, and the mechanism in grapheneos
-docs/BUILD-NOTES.md 47-52.
+in the summary at the top of the Done section.
 
 Windows works end to end over RFCOMM. A stock Pixel does not, and the reason is that it
 does not accept RFCOMM at all -- **its advertisement says so, and that took far too long
@@ -846,8 +843,7 @@ and `ble_frames.proto`.
 ### Quick Share offline: RFCOMM — SOLVED, and it is only the bootstrap
 
 **Closed.** Kept because the wrong turns in it are the useful part; the outcome is
-in the summary at the top of the Done section, and the mechanism in grapheneos
-docs/BUILD-NOTES.md 47-52.
+in the summary at the top of the Done section.
 
 Established by testing against two real peers 2026-09-04, then by reading Bada 2026-09-05.
 
@@ -938,8 +934,7 @@ with no foreign-implementation vector.
 ### Quick Share: the socket — DONE, all four quadrants run on hardware
 
 **Closed.** Kept because the wrong turns in it are the useful part; the outcome is
-in the summary at the top of the Done section, and the mechanism in grapheneos
-docs/BUILD-NOTES.md 47-52.
+in the summary at the top of the Done section.
 
 `libtarish_protocol` is complete and covered by 127 tests, including one that runs a whole
 share between two peers in-process — UKEY2 handshake, key derivation, encrypted channel,
@@ -972,8 +967,8 @@ direction — needs the same three plus `fsm::Outbound`, which is written and te
 **Not blocking, but worth knowing:** `libtarish_protocol` is a dylib rather than an rlib.
 It was declared `rust_library_rlib` first and Soong emitted a correct-looking
 `--extern tarish_protocol=<valid rlib>` that rustc still could not resolve. Worth another
-look if someone wants the static link; it is not worth blocking on, and `gos-push.sh`
-carries the .so and verifies it.
+look if someone wants the static link; it is not worth blocking on, as long as
+whatever deploys the daemon carries the .so with it.
 
 
 ### 6 GHz shares 5 GHz's radio chain — ANSWERED, the grouping was right
@@ -1027,7 +1022,7 @@ Two parts, both shipped:
 - the daemon runs as its own AID, `system_ext_tarish` (7500), declared through
   `TARGET_FS_CONFIG_GEN`. This buys isolation and legibility, not network access.
 - the integrator grants the bit:
-  `grapheneos/patches/packages_modules_Connectivity/0001-grant-tarish-daemon-local-network-access.patch`
+  tarish-daemon's `patches/packages_modules_Connectivity/0001-grant-tarish-daemon-local-network-access.patch`
 
 Why this never affected AirDrop, which had been doing mDNS for weeks: the access map
 is keyed by INTERFACE, and `mosey0` is not a managed network. The gate is wlan0-only.
@@ -1103,7 +1098,7 @@ Then, if both are clean and it still does not appear:
       Google's daemon also calls `mosey_update(handle, ptr, 1, 0)`, and the pointer's
       contents were never identified. It is the leading candidate for populating the
       AWDL service-response TLVs that Mosey's state dump reports.
-      `gos-ffi-trace.sh` already knows how to read its real arguments.
+      Its real arguments can be read by hooking the call in Google's daemon.
 
 ### Protocol, once discovery works
 

@@ -263,7 +263,7 @@ public final class TarishBleService extends Service {
             //     mIsUpgrade = !partitionsFingerprint.equals(ver.fingerprint)
             // so an image built with a STALE BUILD_NUMBER carries the fingerprint already
             // on the phone, is judged "not an upgrade", and its newly added system packages
-            // get nothing granted. Seen on hardware; BUILD-NOTES 30 and 55.
+            // get nothing granted. Seen on hardware.
             Log.w(TAG, "no " + missing + " — no beacon until it is granted");
             return;
         }
