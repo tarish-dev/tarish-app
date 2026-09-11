@@ -230,6 +230,62 @@ service record still exists in dumpsys, so the service is alive. Worth a
 
 
 
+### BCM4383 AirDrop is NOT limited to 0.8 MB/s — that was the band, and it is 7x faster on 5 GHz
+
+**Measured 2026-09-11, frankel (BCM4383) against blazer (BCM4390), 16 MiB, every
+transfer hash-verified at both ends.** The only variable is the AWDL channel, forced
+with `persist.tarish.channels`:
+
+| direction | channel 6 (2.4 GHz) | channel 149 (5 GHz) |
+|---|---|---|
+| frankel -> blazer | 19.28s — 0.87 MB/s | 2.64s — **6.36 MB/s** |
+| blazer -> frankel | 15.27s — 1.10 MB/s | 1.81s — **9.28 MB/s** |
+
+So the ~0.8 MB/s this project has quoted for BCM4383 is a **2.4 GHz measurement**, not a
+chip limit, and the OWL retransmission explanation — no active monitor mode, so frames
+are re-sent up to seven times — does not account for a 7x swing that follows the band.
+
+**How frankel ended up on 2.4 GHz is worth reading, because nothing was broken.** Each
+step was right on its own:
+
+1. AWDL goes in the opposite band from the Wi-Fi association, so it does not stand on it.
+2. The association frequency can only come from the app, and raising AWDL on this chip
+   destroys the association it is read from — so the daemon **remembers** the last real
+   frequency and treats 0 as "no news". Without that, two devices land on opposite bands.
+3. Wi-Fi was then switched off entirely. Nothing reported that, so the memory stood:
+   `Wi-Fi is on 5520 MHz — putting AWDL in the other band, [6]`, and
+   `not offering [[149, 44]] — same band as the 5520 MHz association`.
+
+The daemon refused both 5 GHz channels to protect an association that no longer existed.
+Fixed by carrying a third value: -1 means the adapter is off, which clears the memory and
+frees 5 GHz. 0 still means "not associated, no news" and still keeps it.
+
+**`radiotap0` appears on ASSOCIATION and survives Wi-Fi being switched off.** This is why
+the fast configuration is reachable at all, and why it looks unreachable if tested in the
+wrong order. Straight after a reboot with Wi-Fi never associated, `ip link` shows only
+`wlan0`/`wlan1`, the survey says `radiotap0=false`, and every mode and channel is refused:
+
+```
+Netlink  + channel [6]        refused: mosey_start_5 returned NULL
+Radiotap + channel [149, 44]  refused: mosey_start_5 returned NULL
+```
+
+Associate once and `radiotap0` appears; switch Wi-Fi off afterwards and it stays. So "AWDL
+with Wi-Fi off" works — but only if Wi-Fi has been up since boot.
+
+**The open question this raises.** On 4383 the radiotap path takes the physical radio
+whatever channel is asked for, so the association is lost during AirDrop *regardless* of
+band — the entry below establishes that, and that stock Android does the same. If the
+association is dying either way, the band refusal buys nothing on that chip and costs 7x.
+Choosing the channel list per MODE — coexistence-safe for Netlink, fastest for radiotap —
+would make frankel's AirDrop fast by default.
+
+**The cost, and it is real:** 4383 on 149 and a 4390 peer on 6 are on disjoint channel
+sets and will not discover each other. Apple peers hop both (an iPhone splits 4/16 slots
+across 149 and 6), so AirDrop to the devices this is FOR still works; it is Tarish-to-
+Tarish AirDrop between the two chips that breaks, and Quick Share already covers
+Android-to-Android better. Not changed unilaterally — the trade is the operator's.
+
 ### AWDL and Wi-Fi cannot run together on BCM4383, and the fallback hides it
 
 **Second priority, after VPN lockdown.**
