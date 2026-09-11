@@ -260,25 +260,38 @@ The daemon refused both 5 GHz channels to protect an association that no longer 
 Fixed by carrying a third value: -1 means the adapter is off, which clears the memory and
 frees 5 GHz. 0 still means "not associated, no news" and still keeps it.
 
-**`radiotap0` appears on ASSOCIATION and survives Wi-Fi being switched off.** This is why
-the fast configuration is reachable at all, and why it looks unreachable if tested in the
-wrong order. Straight after a reboot with Wi-Fi never associated, `ip link` shows only
-`wlan0`/`wlan1`, the survey says `radiotap0=false`, and every mode and channel is refused:
+**SWITCHING WI-FI OFF IS NOT HOW YOU GET THIS.** `radiotap0` belongs to the Wi-Fi driver:
+it is there while the adapter is enabled and **gone within three seconds of disabling it**
+— timed, checked at t+3/10/20/40s. With no tap, AWDL cannot start at all, and says so four
+times:
 
 ```
+Netlink  + channel [149, 44]  refused: mosey_start_5 returned NULL
 Netlink  + channel [6]        refused: mosey_start_5 returned NULL
 Radiotap + channel [149, 44]  refused: mosey_start_5 returned NULL
+Radiotap + channel [6]        refused: mosey_start_5 returned NULL
 ```
 
-Associate once and `radiotap0` appears; switch Wi-Fi off afterwards and it stays. So "AWDL
-with Wi-Fi off" works — but only if Wi-Fi has been up since boot.
+An earlier version of this entry claimed the tap survives Wi-Fi going off. It does not; a
+*running AWDL session* holds it open, which is what made the 5 GHz measurement above
+possible and what made the claim look true.
 
-**The open question this raises.** On 4383 the radiotap path takes the physical radio
-whatever channel is asked for, so the association is lost during AirDrop *regardless* of
-band — the entry below establishes that, and that stock Android does the same. If the
-association is dying either way, the band refusal buys nothing on that chip and costs 7x.
-Choosing the channel list per MODE — coexistence-safe for Netlink, fastest for radiotap —
-would make frankel's AirDrop fast by default.
+**So the -1 "adapter is off" path is nearly unreachable, and it is not the fix.** It is
+still right — refusing a band to protect a network that is not there is wrong however
+rarely it happens, and the sentinel bug it exposed was real — but do not expect a speed-up
+from it. With Wi-Fi off there is no AWDL to be fast.
+
+**Which leaves exactly one route to the 7x, and it is the per-MODE channel choice.** On
+4383 the radiotap path takes the physical radio whatever channel is asked for, so the
+association is lost during AirDrop *regardless* of band — the entry below establishes that,
+and that stock Android does the same. Follow it through: AWDL needs Wi-Fi enabled, raising
+AWDL then kills the association, the client reports 0 ("not associated, no news"), the
+daemon keeps the remembered 5 GHz frequency and keeps refusing 149 and 44. **frankel is
+therefore pinned to 2.4 GHz for AirDrop, permanently.** The refusal protects an association
+that this chip has already lost by the time it matters, and it costs 7x to do it.
+
+The change is to choose the channel list per mode — coexistence-safe for Netlink, fastest
+for radiotap — rather than from the STA frequency alone.
 
 **The cost, and it is real:** 4383 on 149 and a 4390 peer on 6 are on disjoint channel
 sets and will not discover each other. Apple peers hop both (an iPhone splits 4/16 slots
