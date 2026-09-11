@@ -551,6 +551,51 @@ with and without a shared network.
 **the advertiser hosts the upgrade network and the discoverer joins it** — not sender and
 receiver — and **Wi-Fi LAN is a bootstrap medium, never an upgrade target.**
 
+### A received file vanished when a stale MediaStore row held its name — SOLVED
+
+**Symptom.** The transfer succeeded, the daemon wrote the file to its inbox, and the file
+never appeared in the app. The inbox copy stayed — correctly, it is only deleted once the
+file is stored — so every subsequent attempt failed the same way, forever.
+
+**Cause.** MediaStore keeps the row and the file in separate places and they can disagree.
+Delete a received file from outside the app and the row survives, still owning the path.
+`IS_PENDING` is what makes this fatal: the bytes are written to `.pending-<n>-<name>` and
+**clearing the flag is what renames the file onto its final path**. So the insert
+succeeded, every byte copied, and the very last call failed:
+
+```
+E TarishCollect: could not store probe.bin
+E TarishCollect: android.database.sqlite.SQLiteConstraintException:
+                 UNIQUE constraint failed: files._data (code 2067)
+        at dev.tarish.app.FileCollector.collectOne(FileCollector.java:128)
+```
+
+which was caught, logged and dropped — the worst shape a failure can take, because
+everything upstream reported success.
+
+**MediaStore's own de-duplication does not cover it.** `ensureUniqueFileColumns` looks at
+the *filesystem*: it finds no file, so it does not rename to `name (1)`. The collision is
+with a row. That is also why this never shows up in ordinary testing — receive the same
+file twice with both copies present and MediaStore quietly stores the second as `(1)`,
+which is exactly what `RPReplay_Final1686524027 (1).mov` and `(2)` on the test device are.
+
+**Fix.** `dropStaleRows()` removes rows whose file is gone before inserting. The existence
+check is `openFileDescriptor()`, not `File.exists()` — the app holds **no storage
+permission at all**, so it cannot stat the path. That same absence is what makes this safe:
+an unpermissioned query returns only rows the app owns, so it can never delete another
+app's entry. `publish()` then handles what is left — a live row owned by someone else — by
+renaming to `name (1)` rather than giving up, and returns the name actually used.
+
+**One trap in the fix itself:** `service.deleteReceivedFile()` takes the name the *daemon*
+knows the file by, not the name it was stored under. After a rename the two differ, and
+passing the stored name leaves the inbox copy behind.
+
+**Verified on hardware, before and after, blazer 2026-09-11.** Staged by deleting the file
+at `/data/media/0/...` rather than through `/sdcard` — a FUSE unlink tells MediaProvider to
+drop the row too, so it does not leave an orphan and does not reproduce this at all. The
+old build threw the exception above; the new one logged `dropping a stale MediaStore row
+for probe.bin` / `stored probe.bin (2097152 bytes)` and drained the inbox.
+
 ### The payload ran over Bluetooth — SOLVED, it runs over Wi-Fi Direct now
 
 **Closed.** Kept because the wrong turns in it are the useful part; the outcome is
