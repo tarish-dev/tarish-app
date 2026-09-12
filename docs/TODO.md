@@ -18,6 +18,60 @@ because the file used to lead with a blocker that had been fixed for weeks; it t
 another stretch leading with "the payload runs over Bluetooth, and it should not", which had
 also been fixed. **Move a section to Done in the same change that closes it**, not later.
 
+### An audio note is a Notes protobuf with complete M4A files inside it
+
+**Measured 2026-09-12, iPhone -> blazer.** A voice recording made *inside* Apple Notes does
+not arrive as audio. It arrives as the same `.notesairdropdocument` protobuf, 82,424 bytes
+instead of 444, and everything is embedded.
+
+```
+/Ask   FileType    com.apple.notes.airdrop.document     <- same as a text note
+       FileSize    82424
+/Upload Content-Type  application/x-dvzip
+        container     Apple block-framed                <- NOT the gzip CPIO a file uses
+```
+
+**The container differs from an ordinary file transfer** and our daemon already handles it —
+82,424 bytes extracted, stored, and MediaStore deduplicated the name against the earlier
+note automatically (`تجرّبه بس-1 (1).notesairdropdocument`).
+
+#### What is inside
+
+```
+com.apple.m4a-audio                       the audio UTI
+ftypM4A  x2                               two complete M4A files
+com.apple.notes.ICTTAudioRecording        Apple Notes' audio class
+com.apple.notes.ICTTTranscriptSegment     Apple ran speech-to-text; the transcript is here
+"New Recording"                           the recording's name
+```
+
+Both recordings extract as valid, complete M4A — `ftyp`, `mdat` and `moov` in each, 38,747
+and 38,638 bytes. **Android plays M4A natively**, so no transcoding is needed; the audio
+only has to be lifted out.
+
+#### The extraction trap
+
+MP4 box size `1` does **not** mean a one-byte box — it signals a **64-bit `largesize`** in
+the following 8 bytes. The first `mdat` here uses it (`00000001 6d646174`). A walker that
+treats size < 8 as invalid stops at the first `mdat` and yields a 28-byte "file" that
+`file(1)` still cheerfully identifies as M4A. Size `0` means "to end of file". Handle both.
+
+The boxes are also not cleanly terminated — a non-standard `cord` box carries a nonsense
+length, so the reliable boundary is **the next `ftyp`**, not a box walk to the end.
+
+#### What this adds to the plan
+
+The native-handling work above now has a third case, and it is the most valuable one
+because the payoff is immediate:
+
+1. Note with text -> render the text (protobuf field, plain UTF-8)
+2. Note with audio -> **extract the M4A files and offer them as playable audio**
+3. Both -> show the text and the recordings together, which is what the note actually is
+
+Apple's own **transcript** is in there too (`ICTTTranscriptSegment`). Worth extracting: it
+gives searchable text for a recording at no cost, on a device that did the speech-to-text
+for us.
+
 ### Handle text, notes and recordings natively — no third-party app required
 
 **Operator's direction, 2026-09-12.** Tarish should be the cross-platform sharing app, and
