@@ -18,6 +18,56 @@ because the file used to lead with a blocker that had been fixed for weeks; it t
 another stretch leading with "the payload runs over Bluetooth, and it should not", which had
 also been fixed. **Move a section to Done in the same change that closes it**, not later.
 
+### RISK: Apple may extend its non-contact code requirement to third-party peers
+
+**Not a bug today. A thing to be ready for, because the cost of being caught out is that
+AirDrop stops working and looks like our regression.**
+
+Recent iOS shows a matching code on both devices before an AirDrop to a non-contact
+proceeds, once per device pair. **Measured behaviour as of 2026-09: it appears only between
+two iPhones.** Never for Tarish, and never for stock Quick Share's AirDrop either — which
+is Google's own privileged implementation on the same `wonder.ko` and `libmosey`, so this is
+not about our stack being unusual.
+
+It is coherent as an Apple-only feature: the code bootstraps a **persistent** trust binding,
+which only means something when both ends have a durable cryptographic identity. A
+third-party peer has nothing to bind, so it falls back to a per-transfer accept prompt.
+
+**Why it might not stay that way.** If Apple decides third-party peers should establish the
+same binding — and "more devices are coming along" is exactly the pressure that would prompt
+it — then a confirmation step becomes mandatory for iOS-to-Android, and an implementation
+without it is simply refused.
+
+### Two pieces of preparation, in order of value
+
+**1. Make an unexpected `/Ask` refusal legible.** This is cheap and worth doing regardless.
+Today a peer that declines tells us very little; if Apple adds a step we would see
+"transfers stopped working" and spend days on it. Log the **full** `/Ask` response — status
+line, headers and body plist — whenever it is anything other than a plain `200`. We are one
+end of that TLS connection, so nothing is hidden from us. A new field or a new status code
+would then be obvious on the first failure instead of the tenth.
+
+**2. Keep a stable identity possible.** A trust binding needs something to bind to, and we
+currently discard ours twice per restart:
+
+- the mDNS instance name follows `mosey0`'s MAC, which is fresh every AWDL session
+- the TLS certificate is generated at each start and deliberately never persisted
+  (`sharingd/src/httpd.rs`, `build_acceptor`: *"a key that never touches storage cannot be
+  stolen from storage"*)
+
+That reasoning is sound and nothing depends on continuity today. But **it forecloses the
+option**, and any confirmation-once scheme would need it. Not a change to make now — a
+change to know how to make, so it is a decision rather than a scramble.
+
+### Do not re-derive this
+
+- The prompt is **Apple-to-Apple only** as of 2026-09, confirmed against both Tarish and
+  stock Quick Share. An earlier note in `tarish-libawdl/docs/FINDINGS.md` claimed it was
+  already a threat to us; that was withdrawn.
+- It lives **above AWDL**, in the TLS `/Ask` exchange on port 8770. It is invisible to an
+  over-the-air capture and can only be observed from an endpoint — which means from our own
+  daemon, not from the Pi.
+
 ### An iPhone sends nothing after /Discover, and the cause is still open
 
 **Symptom.** The iPhone lists this device, opens a connection, POSTs `/Discover`, gets our
