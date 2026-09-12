@@ -83,9 +83,124 @@ final class FileCollector {
             Stored s = collectOne(context, service, name);
             if (s != null) {
                 stored.add(s);
+                // An Apple note is not readable on Android. Unpack it into things that
+                // are, and keep the original -- it is the faithful artefact and the only
+                // thing that round-trips back to an Apple device.
+                stored.addAll(unpackAppleNote(context, s));
             }
         }
         return stored;
+    }
+
+    /**
+     * Turn a received `.notesairdropdocument` into usable files beside it.
+     *
+     * <p>A note arrives as an Apple Notes protobuf: text notes carry one UTF-8 string,
+     * audio notes carry the same text plus complete M4A recordings. Android opens neither.
+     * This writes the text as `.txt` and each recording as `.m4a`, so what the sender
+     * actually shared is something the receiver can read and play.
+     *
+     * <p>Failure here is never fatal: the original file is already stored, so the worst
+     * case is the user gets what they would have got anyway.
+     */
+    private static java.util.List<Stored> unpackAppleNote(Context context, Stored original) {
+        java.util.List<Stored> extra = new java.util.ArrayList<>();
+        if (!AppleNote.looksLikeOne(original.name)) {
+            return extra;
+        }
+        byte[] doc;
+        try (InputStream in = context.getContentResolver().openInputStream(original.uri)) {
+            if (in == null) {
+                return extra;
+            }
+            java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+            byte[] chunk = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(chunk)) > 0) {
+                buf.write(chunk, 0, n);
+            }
+            doc = buf.toByteArray();
+        } catch (IOException | RuntimeException e) {
+            Log.w(TAG, "could not re-read " + original.name + " to unpack it", e);
+            return extra;
+        }
+
+        AppleNote note = AppleNote.parse(doc);
+        String base = original.name.substring(
+                0, original.name.length() - AppleNote.EXTENSION.length());
+
+        if (note.text != null) {
+            // A BOM, deliberately. Android's default charset is UTF-8 so most apps are
+            // fine without one, but text editors that guess an 8-bit codepage turn
+            // non-ASCII into mojibake -- which is exactly what the operator hit sending a
+            // note Android to Android. EF BB BF is an unambiguous "this is UTF-8" that
+            // guessing apps honour. Only ever on .txt: it breaks shell scripts and several
+            // structured-format parsers.
+            byte[] utf8 = note.text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            byte[] withBom = new byte[utf8.length + 3];
+            withBom[0] = (byte) 0xEF;
+            withBom[1] = (byte) 0xBB;
+            withBom[2] = (byte) 0xBF;
+            System.arraycopy(utf8, 0, withBom, 3, utf8.length);
+            Stored t = storeBytes(context, base + ".txt", withBom);
+            if (t != null) {
+                extra.add(t);
+            }
+        }
+
+        for (int i = 0; i < note.recordings.size(); i++) {
+            String name = note.recordings.size() == 1
+                    ? base + ".m4a"
+                    : base + " (" + (i + 1) + ").m4a";
+            Stored a = storeBytes(context, name, note.recordings.get(i));
+            if (a != null) {
+                extra.add(a);
+            }
+        }
+
+        if (!extra.isEmpty()) {
+            Log.i(TAG, "unpacked " + original.name + " into " + extra.size() + " usable file(s)");
+        }
+        return extra;
+    }
+
+    /** Store a byte array in Downloads/Tarish, with the same stale-row handling as a copy. */
+    private static Stored storeBytes(Context context, String name, byte[] bytes) {
+        ContentResolver resolver = context.getContentResolver();
+        dropStaleRows(resolver, name);
+
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Downloads.DISPLAY_NAME, name);
+        values.put(MediaStore.Downloads.RELATIVE_PATH, DEST_DIR);
+        values.put(MediaStore.Downloads.IS_PENDING, 1);
+
+        Uri dest = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (dest == null) {
+            Log.e(TAG, "MediaStore refused an entry for " + name);
+            return null;
+        }
+        try {
+            try (OutputStream out = resolver.openOutputStream(dest)) {
+                if (out == null) {
+                    throw new IOException("no output stream for " + name);
+                }
+                out.write(bytes);
+            }
+            String finalName = publish(resolver, dest, name);
+            if (finalName == null) {
+                throw new IOException("MediaStore would not publish " + name);
+            }
+            Log.i(TAG, "stored " + finalName + " (" + bytes.length + " bytes) in " + DEST_DIR);
+            return new Stored(finalName, bytes.length, dest);
+        } catch (IOException | RuntimeException e) {
+            Log.e(TAG, "could not store " + name, e);
+            try {
+                resolver.delete(dest, null, null);
+            } catch (RuntimeException ignored) {
+                // Nothing useful to do; the entry stays pending and hidden.
+            }
+            return null;
+        }
     }
 
     /** @return what was stored, or null if it could not be */
@@ -197,7 +312,14 @@ final class FileCollector {
             while (c.moveToNext()) {
                 Uri row = ContentUris.withAppendedId(
                         MediaStore.Downloads.EXTERNAL_CONTENT_URI, c.getLong(0));
+                // OPENING it is the existence check -- with no storage permission the
+                // app cannot stat the path itself.
                 try (ParcelFileDescriptor open = resolver.openFileDescriptor(row, "r")) {
+                    if (open == null) {
+                        // No descriptor and no exception. Treat the row as live rather
+                        // than deleting one we cannot prove is stale.
+                        continue;
+                    }
                     // The file is really there, so this is an ordinary duplicate name.
                     // Leave it alone: MediaStore will store ours as "name (1)" the way
                     // it does for any other download.
