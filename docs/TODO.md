@@ -18,6 +18,54 @@ because the file used to lead with a blocker that had been fixed for weeks; it t
 another stretch leading with "the payload runs over Bluetooth, and it should not", which had
 also been fixed. **Move a section to Done in the same change that closes it**, not later.
 
+### A received iPhone note is an unopenable blob, and the text is two lines of code away
+
+**Measured 2026-09-12, iPhone -> blazer.** An AirDrop from Notes arrives as an ordinary
+file transfer — nothing special at the transport layer:
+
+```
+TransferType = files
+BundleID     = com.apple.mobilenotes
+FileType     = com.apple.notes.airdrop.document
+FileName     = 'تجرّبه بس-1.notesairdropdocument'
+FileSize     = 444
+```
+
+**Unicode is fine.** Arabic with a combining shadda survived the binary plist (UTF-16
+there), the CPIO, extraction, the filesystem and MediaStore — 444 bytes claimed, 444
+stored, filename byte-identical. Nothing in our chain mangles it.
+
+**The problem is the file itself.** `.notesairdropdocument` is an Apple Notes **protobuf**,
+and Android has no handler for it. The user gets a blob they cannot open, containing text
+they could read at a glance:
+
+```
+0a b9 03  0a b6 03  0a b3 03  0a b0 03  12 3e  d8aa d8ac ...
+^ four nested length-delimited messages ^      ^ UTF-8 Arabic
+```
+
+The note body sits at protobuf field path **`1.1.1.1.2`**, plain UTF-8. Extracted from the
+444-byte sample:
+
+```
+'تجرّبه بس\n\nماعرف شلون بيروح هالملف'
+```
+
+Both lines and the blank line between them, intact.
+
+**Proposed fix, small and self-contained.** When `FileType` is
+`com.apple.notes.airdrop.document`, walk the protobuf, take the first long UTF-8 string, and
+present the note as **text** — copyable, or offered to a notes app — rather than as a file
+nothing can open. Keep the original file too; it is the faithful artefact.
+
+Do not hardcode the field path. `1.1.1.1.2` held for one sample; walking for the first
+plausible UTF-8 string of reasonable length is robust to Apple restructuring the message,
+and costs nothing extra.
+
+**Worth checking before building it:** what stock Quick Share does with the same file. If
+Google already renders it, matching their behaviour is the target; if they also drop a blob
+in Downloads, we would be ahead of them.
+
 ### RISK: Apple may extend its non-contact code requirement to third-party peers
 
 **Not a bug today. A thing to be ready for, because the cost of being caught out is that
