@@ -18,6 +18,31 @@ because the file used to lead with a blocker that had been fixed for weeks; it t
 another stretch leading with "the payload runs over Bluetooth, and it should not", which had
 also been fixed. **Move a section to Done in the same change that closes it**, not later.
 
+### DONE — Apple notes unpack into text and audio, verified on hardware
+
+`AppleNote` + `FileCollector.unpackAppleNote`, tested 2026-09-12 on blazer with a real
+audio note from an iPhone. One received file became four:
+
+```
+تجرّبه بس-1.notesairdropdocument   82424   original, kept
+تجرّبه بس-1.txt                        70   UTF-8 BOM verified, both Arabic lines intact
+تجرّبه بس-1 (1).m4a                 38747   valid M4A, BYTE-IDENTICAL to the reference
+تجرّبه بس-1 (2).m4a                 38638   valid M4A
+```
+
+The extracted audio was pulled off the device and compared with the Python prototype's
+output: identical, and `file(1)` calls it `ISO Media, Apple iTunes ALAC/AAC-LC (.M4A)`. So
+the Java port is provably correct rather than merely plausible — which is why the algorithm
+was prototyped against real captures first and ported second.
+
+The `.txt` begins `ef bb bf` as intended.
+
+**Still unverified:** that Android's media player actually plays the extracted `.m4a` when
+tapped. Everything upstream of that is confirmed.
+
+**Next in this area:** text to PDF via `PdfDocument` + `StaticLayout` — see the design note
+above, and do not hand-roll Arabic shaping.
+
 ### An audio note is a Notes protobuf with complete M4A files inside it
 
 **Measured 2026-09-12, iPhone -> blazer.** A voice recording made *inside* Apple Notes does
