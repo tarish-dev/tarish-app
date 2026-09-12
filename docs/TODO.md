@@ -18,6 +18,72 @@ because the file used to lead with a blocker that had been fixed for weeks; it t
 another stretch leading with "the payload runs over Bluetooth, and it should not", which had
 also been fixed. **Move a section to Done in the same change that closes it**, not later.
 
+### Handle text, notes and recordings natively — no third-party app required
+
+**Operator's direction, 2026-09-12.** Tarish should be the cross-platform sharing app, and
+that means a received item is *usable on arrival*. Handing someone a blob and telling them
+to find an app for it has not shared anything. Scope: text, notes, and audio recordings,
+with text convertible to PDF.
+
+This is currently unimplemented — nothing in `src/` touches MIME types, charsets,
+`StaticLayout` or `PdfDocument`.
+
+#### What we already know
+
+A Notes AirDrop is an Apple protobuf whose text sits at field path `1.1.1.1.2` in plain
+UTF-8 — see the entry below, measured end to end with Arabic including a combining shadda.
+Our chain preserves it perfectly; nothing on Android will open it.
+
+#### The BOM, precisely
+
+The operator hit gibberish sending a note **Android to Android**, and diagnosed it as a
+missing Unicode header. That is close, and the detail matters:
+
+- Android's default charset **is** UTF-8, so a UTF-8 file usually renders correctly.
+- Gibberish means the receiving app guessed a legacy 8-bit codepage, turning UTF-8 Arabic
+  into Latin-1 mojibake.
+- A `EF BB BF` BOM fixes exactly that class of app: an unambiguous "this is UTF-8" marker
+  that guessing apps honour.
+
+**So: write a BOM on `.txt` files we generate. Never on structured formats** — it breaks
+shell scripts, several JSON parsers, and CSV importers that do not strip it.
+
+#### Arabic in PDF is not "put the text in the PDF"
+
+The expensive trap, flagged before anyone builds into it. Three separate problems:
+
+- **Glyph shaping.** Arabic letters take initial, medial, final or isolated forms by
+  position. Emit the codepoints naively and you get disconnected letters — correct bytes,
+  unreadable output.
+- **Bidi ordering.** Arabic runs right to left, digits and Latin left to right. PDF places
+  glyphs at coordinates, so the Unicode bidi algorithm has to be applied *before* layout.
+  Wrong, and the line reads backwards.
+- **Font embedding.** No viewer is obliged to have an Arabic font. One must be embedded,
+  which means shipping and subsetting it.
+
+That is HarfBuzz territory, and it is weeks.
+
+**The shortcut, and it is the right answer on Android:** `PdfDocument` plus `StaticLayout`.
+Render the text into the `Canvas` of a `PdfDocument` page and Android's own text stack does
+the shaping, the bidi and the font selection — all three problems solved by machinery that
+already ships on the device and is already correct for Arabic. Do not reach for a PDF
+library first.
+
+#### Order of work
+
+1. **Render a received note as text** — the entry below. Smallest useful step, and it makes
+   notes work immediately.
+2. **Text to PDF via `PdfDocument` + `StaticLayout`**, with the note above about not
+   hand-rolling shaping.
+3. **BOM on generated `.txt`.**
+4. **Audio recordings** — iPhone voice memos arrive as `.m4a`, which Android plays natively,
+   so this may need nothing beyond a sensible open action. Verify before building.
+
+#### Worth checking first
+
+What stock Quick Share does with each of these. If Google already renders a note, matching
+them is the target; if they also drop a blob in Downloads, we would be ahead.
+
 ### A received iPhone note is an unopenable blob, and the text is two lines of code away
 
 **Measured 2026-09-12, iPhone -> blazer.** An AirDrop from Notes arrives as an ordinary
