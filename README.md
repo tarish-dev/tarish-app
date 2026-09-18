@@ -17,7 +17,7 @@ Tarish is here.
 |---|---|
 | **tarish-app** (this one) | the app, and **all documentation** for the whole project |
 | [**tarish-daemon**](https://github.com/tarish-dev/tarish-daemon) | `tarishd` and `tarishsharingd`: the transports, the protocol library, the SELinux policy |
-| [**tarish-libawdl**](https://github.com/tarish-dev/tarish-libawdl) | our open AWDL implementation — the replacement for Google's closed `libmosey`, proven on a Pixel |
+| [**tarish-libawdl**](https://github.com/tarish-dev/tarish-libawdl) | an open AWDL implementation — the replacement for Google's closed `libmosey` |
 
 ---
 
@@ -46,17 +46,16 @@ rather than with what has been finished.
 
 ## Why, when sandboxed Play Services exists
 
-GrapheneOS's sandboxed Play Services is excellent, and it is not an answer to this.
+Sandboxed Play Services on GrapheneOS does not cover this, for two reasons.
 
 **It cannot do AirDrop at all.** AirDrop needs Google's `mosey` stack running with platform
 privileges. Getting it working that way — the route this project took first — required
 *privileged* Play Services, not the sandboxed kind, plus a successful check-in to Google's
 servers to receive a feature flag. That is a long way from "install an app".
 
-**And for many people the objection is not the sandbox, it is the code.** Sandboxed Play
-Services is still Google's code on your device. Plenty of people who choose a de-Googled OS
-do not want it there in any form, at any privilege level. That is a legitimate position and
-it should not cost you file sharing with the people around you.
+**And for many the objection is not the sandbox but the code.** Sandboxed Play Services is
+still Google's code on the device, and a de-Googled OS is often chosen to avoid exactly that,
+at any privilege level. Tarish needs none of it.
 
 ---
 
@@ -93,17 +92,18 @@ state.
 
 ### The layers, per protocol
 
-Being precise about what is ours and what is the vendor's matters more than the line count.
+Being precise about which layers are open source and which are the vendor's matters more than
+the line count.
 
 #### AirDrop
 
-| layer | whose | notes |
+| layer | source | notes |
 |---|---|---|
 | radio and MAC — `wonder.ko` | **vendor** | Google/Broadcom kernel module, already in the stock image. **Zero AWDL protocol strings in it** |
 | AWDL protocol — `libmosey_daemon_ffi.so` | **vendor** | election, sync, peer discovery. 51 protocol strings. This is what [`tarish-libawdl`](https://github.com/tarish-dev/tarish-libawdl) replaces |
-| IP on `mosey0` | ours | including the routing Android's fwmark model requires |
-| mDNS, TLS, HTTP, Apple's plist dialect, cpio | **ours** | `tarishsharingd` |
-| share sheet, prompts, consent | **ours** | the app |
+| IP on `mosey0` | open source | including the routing Android's fwmark model requires |
+| mDNS, TLS, HTTP, Apple's plist dialect, cpio | **open source** | `tarishsharingd` |
+| share sheet, prompts, consent | **open source** | the app |
 
 Both vendor blobs **already ship in the Pixel vendor image** and run on a build with no
 Google packages, so using them adds nothing to the device that was not already there.
@@ -115,7 +115,7 @@ to Apple devices on a Pixel with no `libmosey` in the path. The reverse-engineer
 
 #### Quick Share
 
-Entirely ours, top to bottom — there is no vendor component.
+Entirely open source, top to bottom — there is no vendor component.
 
 | layer | where |
 |---|---|
