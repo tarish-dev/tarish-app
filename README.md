@@ -17,6 +17,7 @@ Tarish is here.
 |---|---|
 | **tarish-app** (this one) | the app, and **all documentation** for the whole project |
 | [**tarish-daemon**](https://github.com/tarish-dev/tarish-daemon) | `tarishd` and `tarishsharingd`: the transports, the protocol library, the SELinux policy |
+| [**tarish-libawdl**](https://github.com/tarish-dev/tarish-libawdl) | our open AWDL implementation — the replacement for Google's closed `libmosey`, proven on a Pixel |
 
 ---
 
@@ -99,14 +100,17 @@ Being precise about what is ours and what is the vendor's matters more than the 
 | layer | whose | notes |
 |---|---|---|
 | radio and MAC — `wonder.ko` | **vendor** | Google/Broadcom kernel module, already in the stock image. **Zero AWDL protocol strings in it** |
-| AWDL protocol — `libmosey_daemon_ffi.so` | **vendor** | election, sync, peer discovery. 51 protocol strings. This is what an OWL-style reimplementation would replace |
+| AWDL protocol — `libmosey_daemon_ffi.so` | **vendor** | election, sync, peer discovery. 51 protocol strings. This is what [`tarish-libawdl`](https://github.com/tarish-dev/tarish-libawdl) replaces |
 | IP on `mosey0` | ours | including the routing Android's fwmark model requires |
 | mDNS, TLS, HTTP, Apple's plist dialect, cpio | **ours** | `tarishsharingd` |
 | share sheet, prompts, consent | **ours** | the app |
 
 Both vendor blobs **already ship in the Pixel vendor image** and run on a build with no
 Google packages, so using them adds nothing to the device that was not already there.
-Replacing them is a separate, not-yet-started track —
+Replacing the AWDL blob is a separate track, and it is underway:
+**[tarish-libawdl](https://github.com/tarish-dev/tarish-libawdl)** is an open AWDL
+implementation that already brings the radio up, wins Apple's master election and synchronises
+to Apple devices on a Pixel with no `libmosey` in the path. The reverse-engineering record is
 [docs/REVERSE-ENGINEERING.md](docs/REVERSE-ENGINEERING.md).
 
 #### Quick Share
@@ -315,8 +319,8 @@ language and process model — but it worked out several protocol details indepe
 documented why they matter, and that saved real time. Where a constant exists because Bada
 found it first, the comment beside it says so.
 
-Also to the **openheimer / OWL** research on AWDL, and to **opendrop**, for establishing what
-AirDrop looks like on the wire. Full credits: [docs/CREDITS.md](docs/CREDITS.md).
+Also to **OWL** and **OpenDrop** from seemoo-lab (TU Darmstadt), for establishing what AWDL and
+AirDrop look like on the wire. Full credits: [docs/CREDITS.md](docs/CREDITS.md).
 
 ## Licence
 
