@@ -234,7 +234,60 @@ public final class SettingsActivity extends Activity {
         caption(policy.requireConfirmationManaged
                 ? "Set by your organization."
                 : "When off, files are accepted without asking.");
+
+        // ---- AirDrop identity --------------------------------------------------
+        // A privacy control, not a transport toggle: Apple peers remember this device by a
+        // persisted random handle (NOT the MAC, which the radio randomises each acquire), so
+        // it shows up as ONE device across sessions. Resetting it makes the phone unlinkable
+        // to peers that had it saved -- see ITarishService.resetIdentity.
+        space(16);
+        content.addView(Ui.sectionLabel(this, "AIRDROP IDENTITY"));
+        LinearLayout idCard = Ui.cardBox(this);
+        TextView reset = Ui.text(this, "Reset identity", 15, Ui.error(this), true);
+        int rp = Ui.dp(this, 12);
+        reset.setPadding(rp, rp, rp, rp);
+        reset.setOnClickListener(v -> confirmResetIdentity());
+        idCard.addView(reset);
+        content.addView(idCard);
+        caption("Apple devices remember this phone by a random handle — not your name and"
+                + " not its address. Reset it to appear as a brand-new device. Good for"
+                + " privacy; devices that saved you will no longer recognise you.");
+
         space(24);
+    }
+
+    /** Two-step, because the trade is real: continuity for privacy, and it cannot be undone. */
+    private void confirmResetIdentity() {
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Reset AirDrop identity?")
+                .setMessage("This phone will appear as a brand-new device to everyone nearby."
+                        + " Macs and iPhones that had saved it will no longer recognise it,"
+                        + " and reconnecting to them becomes less seamless. This cannot be"
+                        + " undone.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Reset", (d, w) -> doResetIdentity())
+                .show();
+    }
+
+    private void doResetIdentity() {
+        if (service == null) {
+            connect();
+        }
+        if (service == null) {
+            toast("Tarish service is not running.");
+            return;
+        }
+        try {
+            service.resetIdentity();
+            toast("New AirDrop identity generated.");
+        } catch (Exception e) {
+            Log.w(TAG, "resetIdentity failed", e);
+            toast("Could not reset the identity.");
+        }
+    }
+
+    private void toast(String s) {
+        android.widget.Toast.makeText(this, s, android.widget.Toast.LENGTH_SHORT).show();
     }
 
     /** Two switches — send and receive — over one mode value. */

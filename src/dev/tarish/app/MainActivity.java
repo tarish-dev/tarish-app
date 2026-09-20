@@ -71,6 +71,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     // Outcomes from ITarishCallback.onTransferFinished.
     private static final int STATUS_FAILED = -1;
     private static final int STATUS_DECLINED = -2;
+    private static final int STATUS_CANCELLED = -3;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final List<Uri> shared = new ArrayList<>();
@@ -144,6 +145,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private long offerId;
     private String offerFrom;
     private String[] offerNames = new String[0];
+    /** Total bytes the offer declared, for the transfer card's "of N" and ETA. */
+    private long offerBytes;
 
     private String outcomeTitle;
     private String outcomeDetail;
@@ -154,7 +157,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private TextView inboxLabel;
     private TextView deviceLine;
     private TextView stateLine;
-    private View liveDot;
+    private PulseView liveDot;
     private final List<FileCollector.Stored> received = new ArrayList<>();
     private LinearLayout peerBox;
     private android.app.AlertDialog pinDialog;
@@ -167,6 +170,23 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private TextView progressLabel;
     private ProgressBarView progressBar;
     private LinearLayout progressCard;
+    // The transfer-review header: who, what, and a live state word — the AirDrop-style
+    // card that shows the person what is actually crossing, not just a bare bar.
+    private TextView progressPeer;
+    private TextView progressBadge;
+    private TextView progressState;
+    private TextView progressWhat;
+    private android.widget.FrameLayout progressIcon;
+    // Bumped whenever a transfer begins or a "Done" flash is scheduled, so a delayed hide
+    // only fires if nothing newer has taken the card over in the meantime.
+    private long xferToken;
+    // Speed/ETA tracking for the active transfer. Rate is a smoothed bytes/sec so the
+    // number does not jitter every tick; times are elapsedRealtime millis.
+    private boolean xferSending;
+    private long xferStartMs;
+    private long xferLastMs;
+    private long xferLastBytes;
+    private double xferRate;
 
     private final Runnable poll = new Runnable() {
         @Override
@@ -225,7 +245,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 offerId = id;
                 offerFrom = (peer == null || peer.isEmpty()) ? "A nearby device" : peer;
                 offerNames = names == null ? new String[0] : names;
+                offerBytes = bytes;
                 offerProtocol = protocol;
+                // A genuine incoming request the person may not be looking at — buzz for it.
+                hapticOffer();
                 if (sendMode) {
                     // An offer arrives on the receive side by definition. Switch, or
                     // the prompt would be built into a screen nobody is looking at.
@@ -256,9 +279,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                         return;
                     }
                 }
-                showProgress(total > 0
-                        ? Ui.size(done) + " of " + Ui.size(total)
-                        : Ui.size(done), total > 0 ? (float) done / total : 0f);
+                updateProgress(done, total);
             });
         }
 
@@ -336,14 +357,24 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             new Thread(wifiDirectHost::remove, "tarish-group-release").start();
             main.post(() -> {
                 activeTransfer = 0;
+                boolean hadOffer = offerId != 0;
                 offerId = 0;   // whatever happened, the question is answered
                 hideProgress();
+                // An offer card is only torn down by a rebuild. showOutcome() in receive mode
+                // just updates the identity strip, so a card still up when the transfer ended
+                // -- e.g. the sender cancelled before we answered -- would stay on screen next
+                // to the outcome. Rebuild first so the card actually comes down.
+                if (hadOffer && !sendMode) {
+                    render();
+                }
                 if (pinCancelled) {
                     // Our own doing, not the peer's. The daemon reports this as declined
                     // because from its side a refused PIN and a refused transfer end the
                     // same way, and blaming the other device would be a lie.
                     pinCancelled = false;
                     showOutcome("Cancelled", "you stopped it before anything was sent");
+                } else if (status == STATUS_CANCELLED) {
+                    showOutcome("Cancelled", "the sender stopped it");
                 } else if (status == STATUS_DECLINED) {
                     // Someone pressed Decline. That is an answer, not a fault, and
                     // saying "could not send" would invite a retry that gets refused
@@ -353,8 +384,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                     showOutcome("Could not send", "the transfer did not complete");
                 } else if (!sendMode) {
                     collect();
+                    completeTransfer("Received");
                 } else {
                     showOutcome("Sent", describeShared() + " delivered");
+                    completeTransfer("Sent");
                 }
             });
         }
@@ -780,6 +813,23 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private LinearLayout buildOfferCard() {
         LinearLayout card = Ui.cardBox(this);
 
+        // A file-type mark on the left, the request on the right. The mark tells the person
+        // at a glance whether this is a photo, a video or a document before they read a word
+        // -- the same first cue AirDrop gives.
+        LinearLayout topRow = new LinearLayout(this);
+        topRow.setOrientation(LinearLayout.HORIZONTAL);
+        int mark = Ui.dp(this, 44);
+        topRow.addView(Ui.glyphInCircle(this, Glyph.kindForNames(offerNames),
+                Ui.accent(this), Ui.surfaceSunk(this), 44),
+                new LinearLayout.LayoutParams(mark, mark));
+
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams colLp =
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        colLp.leftMargin = Ui.dp(this, 12);
+        col.setLayoutParams(colLp);
+
         // Name the protocol on the prompt. "Someone wants to send you a file" is a
         // different decision over AirDrop than over Quick Share -- different world,
         // different set of people who could be nearby -- and the sender's name does not
@@ -789,9 +839,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         badgeRow.setPadding(0, 0, 0, Ui.dp(this, 8));
         badgeRow.addView(Ui.badge(this,
                 offerProtocol == ITarishService.PROTOCOL_QUICKSHARE ? "Quick Share" : "AirDrop"));
-        card.addView(badgeRow);
+        col.addView(badgeRow);
 
-        card.addView(Ui.text(this, offerFrom + " wants to send", 17, Ui.textColor(this), true));
+        col.addView(Ui.text(this, offerFrom + " wants to send", 17, Ui.textColor(this), true));
 
         String what;
         if (offerNames.length == 0) {
@@ -803,7 +853,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
         TextView detail = Ui.text(this, what, 13, Ui.textFaint(this), false);
         detail.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 14));
-        card.addView(detail);
+        col.addView(detail);
+
+        topRow.addView(col);
+        card.addView(topRow);
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -845,7 +898,12 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             activeTransfer = id;
             TransferService.watch(getApplicationContext(), id, describeOffer(), false);
             render();
-            showProgress("Receiving…", 0f);
+            String what = describeOffer();
+            if (offerBytes > 0) {
+                what = what.isEmpty() ? Ui.size(offerBytes) : what + "  ·  " + Ui.size(offerBytes);
+            }
+            beginTransfer(offerFrom, what, offerProtocol, false,
+                    Glyph.kindForNames(offerNames));
         } else {
             render();
         }
@@ -863,8 +921,13 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         identity.setOrientation(LinearLayout.HORIZONTAL);
         identity.setGravity(Gravity.CENTER_VERTICAL);
 
-        liveDot = Ui.dot(this, Ui.textFaint(this), 8);
-        identity.addView(liveDot);
+        // A pulsing indicator, not a static dot: waiting to receive keeps the radio up and
+        // the screen awake, and the rings say "live and reaching outward" the way a still
+        // dot never did. The box is wider than the ~8dp core so the rings have room to
+        // expand into it rather than being clipped at the core's edge.
+        liveDot = new PulseView(this);
+        int dotBox = Ui.dp(this, 22);
+        identity.addView(liveDot, new LinearLayout.LayoutParams(dotBox, dotBox));
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -1086,6 +1149,56 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         progressCard.setLayoutParams(lp);
         progressCard.setVisibility(View.GONE);
 
+        // The review, like AirDrop: a file-type mark, who is on the other end, a live state
+        // word, and what is crossing -- so a transfer is never an anonymous bar creeping
+        // across the screen. topRow is [icon] [ peer/state/badge + what ].
+        LinearLayout topRow = new LinearLayout(this);
+        topRow.setOrientation(LinearLayout.HORIZONTAL);
+        topRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        // A holder, so the mark can be swapped for a real thumbnail on send, or for a jade
+        // check when the transfer completes, without rebuilding the row.
+        progressIcon = new android.widget.FrameLayout(this);
+        int iconBox = Ui.dp(this, 40);
+        topRow.addView(progressIcon, new LinearLayout.LayoutParams(iconBox, iconBox));
+
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams colLp =
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        colLp.leftMargin = Ui.dp(this, 12);
+        col.setLayoutParams(colLp);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        progressPeer = Ui.text(this, "", 15, Ui.textColor(this), true);
+        header.addView(progressPeer,
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        progressState = Ui.text(this, "", 11, Ui.accent(this), true);
+        progressState.setAllCaps(true);
+        progressState.setLetterSpacing(0.06f);
+        progressState.setPadding(Ui.dp(this, 8), 0, Ui.dp(this, 8), 0);
+        header.addView(progressState);
+        progressBadge = Ui.badge(this, "AirDrop");
+        header.addView(progressBadge);
+        col.addView(header);
+
+        // What is crossing: file name(s), a count when there is more than one, and size.
+        progressWhat = Ui.text(this, "", 13, Ui.textFaint(this), false);
+        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        wp.topMargin = Ui.dp(this, 3);
+        progressWhat.setLayoutParams(wp);
+        col.addView(progressWhat);
+
+        topRow.addView(col);
+        LinearLayout.LayoutParams trp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        trp.bottomMargin = Ui.dp(this, 12);
+        topRow.setLayoutParams(trp);
+        progressCard.addView(topRow);
+
         progressBar = new ProgressBarView(this);
         progressCard.addView(progressBar, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 6)));
@@ -1110,14 +1223,224 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         return progressCard;
     }
 
-    private void showProgress(String label, float fraction) {
+    /**
+     * Open the transfer card for a run that is starting.
+     *
+     * The bar goes indeterminate: nothing is flowing yet -- this is the AirDrop rendezvous
+     * and handshake -- and a determinate bar frozen at 0 reads as stuck. {@link
+     * #updateProgress} flips it to determinate the moment real bytes arrive.
+     *
+     * @param peer     the device on the other end
+     * @param what     file name(s), which {@link #updateProgress} will suffix with the size
+     * @param protocol AirDrop or Quick Share, for the badge
+     * @param sending  true when we are the sender, for the state word
+     * @param icon     the file-type mark for the card
+     */
+    private void beginTransfer(String peer, String what, int protocol, boolean sending,
+                              Glyph.Kind icon) {
+        if (progressCard == null) {
+            return;
+        }
+        xferSending = sending;
+        xferStartMs = android.os.SystemClock.elapsedRealtime();
+        xferLastMs = xferStartMs;
+        xferLastBytes = 0;
+        xferRate = 0;
+        xferToken++;   // a fresh transfer cancels any pending "Done" hide
+
+        progressPeer.setText(peer == null || peer.isEmpty() ? "A nearby device" : peer);
+        progressBadge.setText(protocol == ITarishService.PROTOCOL_QUICKSHARE
+                ? "Quick Share" : "AirDrop");
+        progressWhat.setText(what == null ? "" : what);
+        progressWhat.setVisibility(what == null || what.isEmpty() ? View.GONE : View.VISIBLE);
+        setCardIcon(icon, Ui.accent(this));
+        setProgressState("Waiting", Ui.accent(this));
+        progressLabel.setText("");
+        progressBar.setIndeterminate(true);
+        progressCard.setVisibility(View.VISIBLE);
+    }
+
+    /** Put a type mark on the card, tinted for the current state. */
+    private void setCardIcon(Glyph.Kind kind, int ink) {
+        if (progressIcon == null) {
+            return;
+        }
+        progressIcon.removeAllViews();
+        progressIcon.addView(Ui.glyphInCircle(this, kind, ink, Ui.surfaceSunk(this), 40));
+    }
+
+    /** Swap the whole icon holder for an arbitrary view (a real thumbnail). */
+    private void setCardIconView(View v) {
+        if (progressIcon == null) {
+            return;
+        }
+        progressIcon.removeAllViews();
+        progressIcon.addView(v, new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    /**
+     * On send, replace the type mark with a real thumbnail when a single image is going out.
+     *
+     * <p>Only for one image: a batch has no single representative, and only images have a
+     * cheap thumbnail. {@link android.content.ContentResolver#loadThumbnail} already returns
+     * a downscaled bitmap, so there is no full-size decode to blow up memory. Off the main
+     * thread because it touches the provider; guarded by {@link #xferToken} so a slow load
+     * that finishes after the transfer is gone does not paint onto the next one's card.
+     */
+    private void maybeLoadSendThumbnail() {
+        if (shared.size() != 1) {
+            return;
+        }
+        final Uri uri = shared.get(0);
+        String type = null;
+        try {
+            type = getContentResolver().getType(uri);
+        } catch (Exception ignored) {
+            // A provider that will not answer its own type is not one we chase for a preview.
+        }
+        if (type == null || !type.startsWith("image/")) {
+            return;
+        }
+        final long token = xferToken;
+        new Thread(() -> {
+            android.graphics.Bitmap bmp = null;
+            try {
+                bmp = getContentResolver().loadThumbnail(
+                        uri, new android.util.Size(120, 120), null);
+            } catch (Throwable t) {
+                Log.w(TAG, "could not load a send thumbnail", t);
+            }
+            final android.graphics.Bitmap ready = bmp;
+            if (ready == null) {
+                return;
+            }
+            main.post(() -> {
+                // Nothing newer took the card, and it is still up.
+                if (token != xferToken || progressCard == null
+                        || progressCard.getVisibility() != View.VISIBLE) {
+                    return;
+                }
+                android.widget.ImageView iv = new android.widget.ImageView(this);
+                iv.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+                iv.setImageBitmap(ready);
+                iv.setBackground(Ui.card(this, Ui.surfaceSunk(this), Color.TRANSPARENT, 10));
+                iv.setClipToOutline(true);
+                setCardIconView(iv);
+            });
+        }, "tarish-thumb").start();
+    }
+
+    /**
+     * Flash the card as complete, then take it down.
+     *
+     * A jade check with the outcome word, held briefly so the person sees the transfer
+     * landed rather than the card just vanishing. The hide is guarded by {@link #xferToken}
+     * so a new transfer that starts inside the window keeps its own card.
+     */
+    private void completeTransfer(String word) {
         if (progressCard == null) {
             return;
         }
         progressCard.setVisibility(View.VISIBLE);
-        progressBar.setFraction(fraction);
-        progressLabel.setText(label);
+        progressBar.setFraction(1f);
+        setProgressState(word, Ui.live(this));
+        setCardIcon(Glyph.Kind.CHECK, Ui.live(this));
+        hapticDone();
+        final long token = ++xferToken;
+        main.postDelayed(() -> {
+            if (token == xferToken && activeTransfer == 0) {
+                hideProgress();
+            }
+        }, 1500);
     }
+
+    /**
+     * Fold live byte counts into the card: fraction, and a "3.4 MB of 21.6 MB · 8.2 MB/s ·
+     * 3s left" line, plus a smoothed speed and estimate.
+     *
+     * Also adopts a transfer nobody announced (auto-accept, no offer) by opening the card
+     * with a generic header rather than dropping the update on the floor.
+     */
+    private void updateProgress(long done, long total) {
+        if (progressCard == null) {
+            return;
+        }
+        if (progressCard.getVisibility() != View.VISIBLE) {
+            beginTransfer(offerFrom != null ? offerFrom : "A nearby device",
+                    describeOffer(), offerProtocol, false, Glyph.kindForNames(offerNames));
+        }
+        progressCard.setVisibility(View.VISIBLE);
+
+        long now = android.os.SystemClock.elapsedRealtime();
+        long dt = now - xferLastMs;
+        if (dt >= 250) {
+            double inst = (done - xferLastBytes) * 1000.0 / dt;   // bytes/sec
+            xferRate = xferRate <= 0 ? inst : 0.7 * xferRate + 0.3 * inst;
+            xferLastMs = now;
+            xferLastBytes = done;
+        }
+
+        setProgressState(xferSending ? "Sending" : "Receiving", Ui.accent(this));
+        if (total > 0) {
+            progressBar.setFraction((float) done / total);
+        } else {
+            progressBar.setIndeterminate(true);
+        }
+
+        StringBuilder line = new StringBuilder();
+        line.append(total > 0 ? Ui.size(done) + " of " + Ui.size(total) : Ui.size(done));
+        if (xferRate > 1024) {
+            line.append("  ·  ").append(Ui.size((long) xferRate)).append("/s");
+            if (total > done && xferRate > 0) {
+                long eta = (long) ((total - done) / xferRate);
+                line.append("  ·  ").append(formatEta(eta)).append(" left");
+            }
+        }
+        progressLabel.setText(line.toString());
+    }
+
+    /** "5s" / "1m 20s" / "3h 4m" — coarse enough not to twitch, fine enough to trust. */
+    private String formatEta(long seconds) {
+        if (seconds < 60) {
+            return Math.max(1, seconds) + "s";
+        }
+        if (seconds < 3600) {
+            return (seconds / 60) + "m " + (seconds % 60) + "s";
+        }
+        return (seconds / 3600) + "h " + ((seconds % 3600) / 60) + "m";
+    }
+
+    private void setProgressState(String word, int color) {
+        if (progressState != null) {
+            progressState.setText(word);
+            progressState.setTextColor(color);
+        }
+    }
+
+    /** A short buzz, if the device has a vibrator and the user has not turned haptics off. */
+    private void vibrate(android.os.VibrationEffect effect) {
+        try {
+            android.os.Vibrator v = (android.os.Vibrator) getSystemService(VIBRATOR_SERVICE);
+            if (v != null && v.hasVibrator()) {
+                v.vibrate(effect);
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "vibrate failed", t);
+        }
+    }
+
+    /** Two taps — a request for attention, for an incoming offer the person may not be watching. */
+    private void hapticOffer() {
+        vibrate(android.os.VibrationEffect.createWaveform(
+                new long[] {0, 45, 90, 45}, new int[] {0, 190, 0, 190}, -1));
+    }
+
+    /** One light tick — a quiet acknowledgement that a transfer landed. */
+    private void hapticDone() {
+        vibrate(android.os.VibrationEffect.createOneShot(28, 140));
+    }
+
 
     /**
      * Ask for the PIN shown on the RECEIVING device.
@@ -1281,7 +1604,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             stateLine.setText(state);
         }
         if (liveDot != null) {
-            liveDot.setBackground(Ui.circle(live ? Ui.live(this) : Ui.textFaint(this)));
+            liveDot.setLive(live, live ? Ui.live(this) : Ui.textFaint(this));
         }
     }
 
@@ -2010,10 +2333,17 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             }
         }
         if (fds.isEmpty()) {
-            showProgress("Could not read the files", 0f);
+            showOutcome("Could not read the files", "check the files you chose");
             return;
         }
-        showProgress("Starting…", 0f);
+        // Open the review card on the peer we are about to dial. The bar runs indeterminate
+        // through the connect/handshake; the daemon's first progress callback flips it to a
+        // real fraction with speed and ETA.
+        beginTransfer(peer.name, describeSending(), peer.protocol, true,
+                Glyph.kindForNames(names.toArray(new String[0])));
+        // On send we hold the file URIs, so a single image can carry a real thumbnail
+        // instead of the type mark -- the closest thing to what AirDrop shows.
+        maybeLoadSendThumbnail();
 
         // QUICK SHARE IS HANDLED BEFORE THE try/finally BELOW, NOT INSIDE IT.
         //
@@ -2037,7 +2367,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 long id = QuickShareSender.send(svc, peer, toSend, toName);
                 main.post(() -> {
                     if (id == 0) {
-                        showProgress("Could not reach " + peer.name, 0f);
+                        showOutcome("Could not reach " + peer.name, "the device did not answer");
                     } else {
                         activeTransfer = id;
                         // From here the transfer must survive this screen. It runs partly
@@ -2069,7 +2399,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                     describeSending(), true);
         } catch (Exception e) {
             Log.e(TAG, "sendFiles failed", e);
-            showProgress("Could not send", 0f);
+            showOutcome("Could not send", "the transfer did not start");
         } finally {
             // The daemon duplicates what it needs, so these are ours to close.
             for (ParcelFileDescriptor pfd : fds) {
