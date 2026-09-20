@@ -158,7 +158,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private TextView deviceLine;
     private TextView stateLine;
     private PulseView liveDot;
-    private final List<FileCollector.Stored> received = new ArrayList<>();
+    // Every transfer, in both directions and every outcome -- received, sent, cancelled,
+    // declined, failed -- newest last. The screen's "Recent" list reads from this.
+    private final List<TransferRecord> activity = new ArrayList<>();
     private LinearLayout peerBox;
     private android.app.AlertDialog pinDialog;
     private TextView pinMessage;
@@ -183,6 +185,11 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     // Speed/ETA tracking for the active transfer. Rate is a smoothed bytes/sec so the
     // number does not jitter every tick; times are elapsedRealtime millis.
     private boolean xferSending;
+    // The active transfer's context, kept so an outcome (sent/cancelled/failed) can be
+    // recorded with who and what even though onTransferFinished carries only an id.
+    private String xferPeerName;
+    private int xferProtocol;
+    private String[] xferNames = new String[0];
     private long xferStartMs;
     private long xferLastMs;
     private long xferLastBytes;
@@ -373,20 +380,32 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                     // same way, and blaming the other device would be a lie.
                     pinCancelled = false;
                     showOutcome("Cancelled", "you stopped it before anything was sent");
+                    addRecord(TransferRecord.Outcome.CANCELLED, false,
+                            xferPeerName, xferProtocol, xferNames, 0);
                 } else if (status == STATUS_CANCELLED) {
                     showOutcome("Cancelled", "the sender stopped it");
+                    // Incoming: a cancel can arrive at the prompt before we ever accepted,
+                    // so the offer context is the reliable source, not the xfer fields.
+                    addRecord(TransferRecord.Outcome.CANCELLED, true,
+                            offerFrom, offerProtocol, offerNames, offerBytes);
                 } else if (status == STATUS_DECLINED) {
                     // Someone pressed Decline. That is an answer, not a fault, and
                     // saying "could not send" would invite a retry that gets refused
                     // again.
                     showOutcome("Declined", "the other device turned it down");
+                    addRecord(TransferRecord.Outcome.DECLINED, false,
+                            xferPeerName, xferProtocol, xferNames, 0);
                 } else if (status == STATUS_FAILED) {
                     showOutcome("Could not send", "the transfer did not complete");
+                    addRecord(TransferRecord.Outcome.FAILED, !xferSending,
+                            xferPeerName, xferProtocol, xferNames, xferSending ? 0 : offerBytes);
                 } else if (!sendMode) {
                     collect();
                     completeTransfer("Received");
                 } else {
                     showOutcome("Sent", describeShared() + " delivered");
+                    addRecord(TransferRecord.Outcome.SENT, false,
+                            xferPeerName, xferProtocol, xferNames, 0);
                     completeTransfer("Sent");
                 }
             });
@@ -902,8 +921,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             if (offerBytes > 0) {
                 what = what.isEmpty() ? Ui.size(offerBytes) : what + "  ·  " + Ui.size(offerBytes);
             }
-            beginTransfer(offerFrom, what, offerProtocol, false,
-                    Glyph.kindForNames(offerNames));
+            beginTransfer(offerFrom, what, offerProtocol, false, offerNames);
         } else {
             render();
         }
@@ -968,49 +986,62 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     /**
-     * Everything received this session, newest first, each openable.
+     * Recent activity, newest first: what arrived, what was sent, and what did not go
+     * through -- cancelled, declined, failed.
      *
-     * The old screen collected a file into Downloads and then showed nothing at all --
-     * the transfer succeeded and left no trace the user could act on. A list that
-     * persists, with a size, a time and a way to open it, is the whole point of the
-     * screen after a transfer lands.
+     * The old list held only files that landed, so it could not answer "did that send?"
+     * or "why did nothing come?". Received files stay openable in place; every row opens a
+     * details sheet with who, when, how big and over what.
      */
     private void renderInbox() {
         if (inbox == null) {
             return;
         }
         inbox.removeAllViews();
-        if (received.isEmpty()) {
-            TextView empty = Ui.text(this, "Nothing received yet", 13, Ui.textFaint(this), false);
+        if (activity.isEmpty()) {
+            TextView empty = Ui.text(this, "Nothing yet", 13, Ui.textFaint(this), false);
             int p = Ui.dp(this, 16);
             empty.setPadding(p, p, p, p);
             inbox.addView(empty);
-            inboxLabel.setText("INBOX");
+            inboxLabel.setText("RECENT");
             return;
         }
-        inboxLabel.setText("INBOX  ·  " + received.size());
-        for (int i = received.size() - 1; i >= 0; i--) {
-            if (i < received.size() - 1) {
+        inboxLabel.setText("RECENT  ·  " + activity.size());
+        for (int i = activity.size() - 1; i >= 0; i--) {
+            if (i < activity.size() - 1) {
                 inbox.addView(Ui.rule(this));
             }
-            inbox.addView(fileRow(received.get(i)));
+            inbox.addView(recordRow(activity.get(i)));
         }
     }
 
-    private View fileRow(FileCollector.Stored f) {
+    private View recordRow(TransferRecord r) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         int p = Ui.dp(this, 14);
         row.setPadding(p, p, p, p);
+        // The whole row opens details -- who sent it, when, how big, over what.
+        row.setOnClickListener(v -> showRecordDetails(r));
 
-        // Muted, not accent: the extension is a label, not an action, and colouring it
-        // amber put brand emphasis on "BIN".
-        TextView ext = Ui.text(this, extensionOf(f.name), 10, Ui.textMuted(this), true);
-        ext.setGravity(Gravity.CENTER);
-        ext.setLetterSpacing(0.06f);
-        ext.setBackground(Ui.card(this, Ui.surfaceSunk(this), Ui.ruleColor(this), 8));
-        int w = Ui.dp(this, 42), h = Ui.dp(this, 34);
-        row.addView(ext, new LinearLayout.LayoutParams(w, h));
+        int box = Ui.dp(this, 40);
+        if (r.isPreviewable()) {
+            // A single photo/video that landed: show a real thumbnail. Until it loads (or
+            // if it never does) the type mark sits in its place.
+            android.widget.FrameLayout holder = new android.widget.FrameLayout(this);
+            holder.addView(Ui.glyphInCircle(this, r.icon(), Ui.textMuted(this),
+                    Ui.surfaceSunk(this), 40));
+            row.addView(holder, new LinearLayout.LayoutParams(box, box));
+            if (r.thumb != null) {
+                paintThumb(holder, r.thumb);
+            } else {
+                loadRecordThumb(r, holder);
+            }
+        } else {
+            int ink = r.outcome == TransferRecord.Outcome.FAILED
+                    ? Ui.error(this) : Ui.textMuted(this);
+            row.addView(Ui.glyphInCircle(this, r.icon(), ink, Ui.surfaceSunk(this), 40),
+                    new LinearLayout.LayoutParams(box, box));
+        }
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -1018,27 +1049,163 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         lp.leftMargin = Ui.dp(this, 12);
         col.setLayoutParams(lp);
-        TextView n = Ui.text(this, f.name, 14, Ui.textColor(this), false);
+
+        TextView n = Ui.text(this, r.title(), 14, Ui.textColor(this), false);
         n.setMaxLines(1);
         n.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
         col.addView(n);
-        // Tabular so the sizes line up down the column instead of ragging.
-        col.addView(Ui.tabular(Ui.text(this, Ui.size(f.bytes) + "  ·  " + ago(f.receivedAt),
-                            12, Ui.textFaint(this), false)));
+
+        // "Received · Alice · 2m · 4.1 MB", the outcome word coloured for what happened.
+        LinearLayout sub = new LinearLayout(this);
+        sub.setOrientation(LinearLayout.HORIZONTAL);
+        sub.addView(Ui.text(this, r.outcomeWord(), 12, outcomeColor(r), true));
+        String rest = "  ·  " + r.peerLabel() + "  ·  " + ago(r.whenMs);
+        if (r.bytes > 0) {
+            rest = rest + "  ·  " + Ui.size(r.bytes);
+        }
+        sub.addView(Ui.text(this, rest, 12, Ui.textFaint(this), false));
+        col.addView(sub);
         row.addView(col);
 
-        // QUIET. This was a filled amber button on every row, so three received files put
-        // three of the loudest thing on screen against one secondary action -- and a real
-        // transfer, which IS the amber thing, had to compete with them. Signal amber is
-        // the brand and the send action; spending it per inbox row spends it on nothing.
-        TextView open = Ui.text(this, "OPEN", 11, Ui.accent(this), true);
-        open.setLetterSpacing(0.1f);
-        open.setGravity(Gravity.CENTER);
-        open.setBackground(Ui.card(this, Color.TRANSPARENT, Ui.accent(this), 8));
-        open.setPadding(Ui.dp(this, 14), Ui.dp(this, 8), Ui.dp(this, 14), Ui.dp(this, 8));
-        open.setOnClickListener(v -> openFile(f));
-        row.addView(open);
+        FileCollector.Stored single = r.singleFile();
+        if (single != null) {
+            // QUIET: outlined, not filled -- signal amber is the send action, not every row.
+            TextView open = Ui.text(this, "OPEN", 11, Ui.accent(this), true);
+            open.setLetterSpacing(0.1f);
+            open.setGravity(Gravity.CENTER);
+            open.setBackground(Ui.card(this, Color.TRANSPARENT, Ui.accent(this), 8));
+            open.setPadding(Ui.dp(this, 14), Ui.dp(this, 8), Ui.dp(this, 14), Ui.dp(this, 8));
+            open.setOnClickListener(v -> openFile(single));
+            row.addView(open);
+        }
         return row;
+    }
+
+    private int outcomeColor(TransferRecord r) {
+        switch (r.outcome) {
+            case RECEIVED:
+            case SENT:
+                return Ui.live(this);
+            case FAILED:
+                return Ui.error(this);
+            default:
+                return Ui.textMuted(this);   // cancelled, declined
+        }
+    }
+
+    /** Record an outcome in the activity list and refresh it. */
+    private void addRecord(TransferRecord.Outcome o, boolean incoming, String peer,
+                           int protocol, String[] names, long bytes) {
+        activity.add(new TransferRecord(o, incoming, peer, protocol, names, bytes,
+                java.util.Collections.emptyList()));
+        renderInbox();
+    }
+
+    private void paintThumb(android.widget.FrameLayout holder, android.graphics.Bitmap bmp) {
+        holder.removeAllViews();
+        android.widget.ImageView iv = new android.widget.ImageView(this);
+        iv.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        iv.setImageBitmap(bmp);
+        iv.setBackground(Ui.card(this, Ui.surfaceSunk(this), Ui.ruleColor(this), 10));
+        iv.setClipToOutline(true);
+        holder.addView(iv, new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    /** Load a received file's thumbnail once, cache it on the record, and paint it in. */
+    private void loadRecordThumb(TransferRecord r, android.widget.FrameLayout holder) {
+        if (r.thumbTried) {
+            return;
+        }
+        r.thumbTried = true;
+        FileCollector.Stored f = r.singleFile();
+        if (f == null || f.uri == null) {
+            return;
+        }
+        final Uri uri = f.uri;
+        new Thread(() -> {
+            android.graphics.Bitmap b = null;
+            try {
+                b = getContentResolver().loadThumbnail(uri, new android.util.Size(120, 120), null);
+            } catch (Throwable t) {
+                // No thumbnail (a codec Android lacks, or a provider that won't make one).
+            }
+            final android.graphics.Bitmap ready = b;
+            if (ready == null) {
+                return;
+            }
+            main.post(() -> {
+                r.thumb = ready;
+                paintThumb(holder, ready);
+            });
+        }, "tarish-thumb").start();
+    }
+
+    /** The full "who, when, how big, over what" for one activity entry. */
+    private void showRecordDetails(TransferRecord r) {
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        int pad = Ui.dp(this, 22);
+        body.setPadding(pad, pad, pad, Ui.dp(this, 8));
+
+        body.addView(Ui.text(this, r.title(), 19, Ui.textColor(this), true));
+        TextView dir = Ui.text(this, r.directionLine(), 13, outcomeColor(r), true);
+        dir.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 14));
+        body.addView(dir);
+
+        body.addView(detailLine("When", fullTime(r.whenMs)));
+        body.addView(detailLine("Peer", r.peerLabel()));
+        body.addView(detailLine("Over", r.protocol == ITarishService.PROTOCOL_QUICKSHARE
+                ? "Quick Share" : "AirDrop"));
+        if (r.bytes > 0) {
+            body.addView(detailLine("Size", Ui.size(r.bytes)));
+        }
+        if (r.names.length > 1) {
+            body.addView(detailLine("Files", String.valueOf(r.names.length)));
+        }
+
+        // Each landed file, openable in place.
+        if (!r.files.isEmpty()) {
+            View gap = new View(this);
+            body.addView(gap, new LinearLayout.LayoutParams(1, Ui.dp(this, 8)));
+            for (FileCollector.Stored f : r.files) {
+                LinearLayout fr = new LinearLayout(this);
+                fr.setGravity(Gravity.CENTER_VERTICAL);
+                fr.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
+                TextView fn = Ui.text(this, f.name, 13, Ui.textColor(this), false);
+                fn.setMaxLines(1);
+                fn.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+                fr.addView(fn, new LinearLayout.LayoutParams(
+                        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                TextView open = Ui.text(this, "OPEN", 11, Ui.accent(this), true);
+                open.setPadding(Ui.dp(this, 12), Ui.dp(this, 4), 0, Ui.dp(this, 4));
+                open.setOnClickListener(v -> openFile(f));
+                fr.addView(open);
+                body.addView(fr);
+            }
+        }
+
+        new android.app.AlertDialog.Builder(this)
+                .setView(body)
+                .setPositiveButton("Done", null)
+                .show();
+    }
+
+    private LinearLayout detailLine(String label, String value) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 4));
+        row.addView(Ui.text(this, label, 13, Ui.textFaint(this), false),
+                new LinearLayout.LayoutParams(Ui.dp(this, 64),
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
+        row.addView(Ui.text(this, value, 13, Ui.textColor(this), false));
+        return row;
+    }
+
+    private String fullTime(long when) {
+        return java.text.DateFormat.getDateTimeInstance(
+                java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT)
+                .format(new java.util.Date(when));
     }
 
     private void openFile(FileCollector.Stored f) {
@@ -1053,12 +1220,6 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         } catch (Exception e) {
             Log.w(TAG, "nothing can open " + f.name, e);
         }
-    }
-
-    private static String extensionOf(String name) {
-        int dot = name.lastIndexOf('.');
-        String e = dot > 0 && dot < name.length() - 1 ? name.substring(dot + 1) : "FILE";
-        return e.length() > 4 ? e.substring(0, 4).toUpperCase() : e.toUpperCase();
     }
 
     private static String ago(long when) {
@@ -1102,6 +1263,13 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         choose.setOnClickListener(v -> pickFiles());
         files.addView(choose);
         content.addView(files);
+
+        // Send text without a file: copy from any app, paste here, send it as a note. The
+        // receiver -- Android or Apple -- gets it as a small .txt.
+        TextView note = Ui.text(this, "Or type a note to send", 12, Ui.accent(this), true);
+        note.setPadding(Ui.dp(this, 4), Ui.dp(this, 10), 0, Ui.dp(this, 2));
+        note.setOnClickListener(v -> composeNote());
+        content.addView(note);
 
         content.addView(buildProgressCard());
 
@@ -1234,14 +1402,17 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * @param what     file name(s), which {@link #updateProgress} will suffix with the size
      * @param protocol AirDrop or Quick Share, for the badge
      * @param sending  true when we are the sender, for the state word
-     * @param icon     the file-type mark for the card
+     * @param names    file/note names, for the type mark and the activity record
      */
     private void beginTransfer(String peer, String what, int protocol, boolean sending,
-                              Glyph.Kind icon) {
+                              String[] names) {
         if (progressCard == null) {
             return;
         }
         xferSending = sending;
+        xferPeerName = peer;
+        xferProtocol = protocol;
+        xferNames = names == null ? new String[0] : names;
         xferStartMs = android.os.SystemClock.elapsedRealtime();
         xferLastMs = xferStartMs;
         xferLastBytes = 0;
@@ -1253,7 +1424,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 ? "Quick Share" : "AirDrop");
         progressWhat.setText(what == null ? "" : what);
         progressWhat.setVisibility(what == null || what.isEmpty() ? View.GONE : View.VISIBLE);
-        setCardIcon(icon, Ui.accent(this));
+        setCardIcon(Glyph.kindForNames(xferNames), Ui.accent(this));
         setProgressState("Waiting", Ui.accent(this));
         progressLabel.setText("");
         progressBar.setIndeterminate(true);
@@ -1299,7 +1470,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         } catch (Exception ignored) {
             // A provider that will not answer its own type is not one we chase for a preview.
         }
-        if (type == null || !type.startsWith("image/")) {
+        if (type == null || !(type.startsWith("image/") || type.startsWith("video/"))) {
             return;
         }
         final long token = xferToken;
@@ -1368,7 +1539,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
         if (progressCard.getVisibility() != View.VISIBLE) {
             beginTransfer(offerFrom != null ? offerFrom : "A nearby device",
-                    describeOffer(), offerProtocol, false, Glyph.kindForNames(offerNames));
+                    describeOffer(), offerProtocol, false, offerNames);
         }
         progressCard.setVisibility(View.VISIBLE);
 
@@ -2021,7 +2192,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         if (got.isEmpty()) {
             return;
         }
-        received.addAll(got);
+        // The files carry their own names and sizes; the peer is whoever last offered.
+        activity.add(TransferRecord.received(offerFrom, offerProtocol, got));
         renderInbox();
     }
 
@@ -2036,6 +2208,17 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             Uri u = intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri.class);
             if (u != null) {
                 shared.add(u);
+            } else {
+                // Shared text (a selection, a URL, a note) rather than a file. Apple has no
+                // "text item" over AirDrop that Android can hand it, so we stage it as a
+                // small .txt -- which an iPhone or Mac receives as a plain text file.
+                CharSequence text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
+                if (text != null && text.length() > 0) {
+                    Uri note = writeNote(text.toString());
+                    if (note != null) {
+                        shared.add(note);
+                    }
+                }
             }
         } else if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
             List<Uri> us = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri.class);
@@ -2043,6 +2226,95 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 shared.addAll(us);
             }
         }
+    }
+
+    /**
+     * Stage arbitrary text as a small .txt in the app cache, returning a URI the send path
+     * can open. Named from the first line so the receiver sees something meaningful rather
+     * than "note.txt" every time. UTF-8, no BOM -- an outbound file should be clean text; a
+     * BOM is added only on the receive side, where Android editors need the hint.
+     */
+    private Uri writeNote(String text) {
+        try {
+            java.io.File dir = new java.io.File(getCacheDir(), "notes");
+            dir.mkdirs();
+            java.io.File f = new java.io.File(dir, noteFileName(text));
+            try (java.io.OutputStream os = new java.io.FileOutputStream(f)) {
+                os.write(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+            return Uri.fromFile(f);
+        } catch (Exception e) {
+            Log.w(TAG, "could not stage a note", e);
+            return null;
+        }
+    }
+
+    /** A filename from the text's first line: trimmed, sanitised, capped, always ".txt". */
+    private String noteFileName(String text) {
+        String line = text.trim();
+        int nl = line.indexOf('\n');
+        if (nl >= 0) {
+            line = line.substring(0, nl).trim();
+        }
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < line.length() && b.length() < 32; i++) {
+            char c = line.charAt(i);
+            b.append(Character.isLetterOrDigit(c) || c == ' ' || c == '-' || c == '_' ? c : ' ');
+        }
+        String base = b.toString().trim();
+        return (base.isEmpty() ? "Note" : base) + ".txt";
+    }
+
+    /** Type or paste text and stage it as a note; the send screen then lists peers for it. */
+    private void composeNote() {
+        EditText in = new EditText(this);
+        in.setHint("Type or paste text to send as a note");
+        in.setGravity(Gravity.TOP | Gravity.START);
+        in.setMinLines(4);
+        in.setTextColor(Ui.textColor(this));
+        in.setHintTextColor(Ui.textFaint(this));
+        // Prefill from the clipboard -- "copy from any app and send it" is the whole point.
+        CharSequence clip = clipboardText();
+        if (clip != null) {
+            in.setText(clip);
+        }
+        LinearLayout box = new LinearLayout(this);
+        box.setPadding(Ui.dp(this, 22), Ui.dp(this, 16), Ui.dp(this, 22), 0);
+        box.addView(in);
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Send a note")
+                .setView(box)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Next", (d, w) -> {
+                    String t = in.getText().toString();
+                    if (t.trim().isEmpty()) {
+                        return;
+                    }
+                    Uri staged = writeNote(t);
+                    if (staged != null) {
+                        shared.clear();
+                        shared.add(staged);
+                        outcomeTitle = null;
+                        outcomeDetail = null;
+                        render();   // the send screen now lists peers to send the note to
+                    }
+                })
+                .show();
+    }
+
+    /** The clipboard's text, or null. The app is foreground here, so the read is allowed. */
+    private CharSequence clipboardText() {
+        try {
+            android.content.ClipboardManager cm =
+                    (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip().getItemCount() > 0) {
+                CharSequence t = cm.getPrimaryClip().getItemAt(0).coerceToText(this);
+                return t != null && t.length() > 0 ? t : null;
+            }
+        } catch (Throwable ignored) {
+            // No clipboard access is not an error; the field just starts empty.
+        }
+        return null;
     }
 
     /**
@@ -2340,7 +2612,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // through the connect/handshake; the daemon's first progress callback flips it to a
         // real fraction with speed and ETA.
         beginTransfer(peer.name, describeSending(), peer.protocol, true,
-                Glyph.kindForNames(names.toArray(new String[0])));
+                names.toArray(new String[0]));
         // On send we hold the file URIs, so a single image can carry a real thumbnail
         // instead of the type mark -- the closest thing to what AirDrop shows.
         maybeLoadSendThumbnail();
