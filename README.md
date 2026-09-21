@@ -17,7 +17,7 @@ Tarish is here.
 |---|---|
 | **tarish-app** (this one) | the app, and **all documentation** for the whole project |
 | [**tarish-daemon**](https://github.com/tarish-dev/tarish-daemon) | `tarishd` and `tarishsharingd`: the transports, the protocol library, the SELinux policy |
-| [**tarish-libawdl**](https://github.com/tarish-dev/tarish-libawdl) | an open AWDL implementation — the replacement for Google's closed `libmosey` |
+| [**tarish-link**](https://github.com/tarish-dev/tarish-link) | an open AWDL implementation — the replacement for Google's closed `libmosey` |
 
 ---
 
@@ -100,7 +100,7 @@ the line count.
 | layer | source | notes |
 |---|---|---|
 | radio and MAC — `wonder.ko` | **vendor** | Google/Broadcom kernel module, already in the stock image. **Zero AWDL protocol strings in it** |
-| AWDL protocol — `libmosey_daemon_ffi.so` | **vendor** | election, sync, peer discovery. 51 protocol strings. This is what [`tarish-libawdl`](https://github.com/tarish-dev/tarish-libawdl) replaces |
+| AWDL protocol — `libmosey_daemon_ffi.so` | **vendor** | election, sync, peer discovery. 51 protocol strings. This is what [`tarish-link`](https://github.com/tarish-dev/tarish-link) replaces |
 | IP on `mosey0` | open source | including the routing Android's fwmark model requires |
 | mDNS, TLS, HTTP, Apple's plist dialect, cpio | **open source** | `tarishsharingd` |
 | share sheet, prompts, consent | **open source** | the app |
@@ -108,7 +108,7 @@ the line count.
 Both vendor blobs **already ship in the Pixel vendor image** and run on a build with no
 Google packages, so using them adds nothing to the device that was not already there.
 Replacing the AWDL blob is a separate track, and it is underway:
-**[tarish-libawdl](https://github.com/tarish-dev/tarish-libawdl)** is an open AWDL
+**[tarish-link](https://github.com/tarish-dev/tarish-link)** is an open AWDL
 implementation that already brings the radio up, wins Apple's master election and synchronises
 to Apple devices on a Pixel with no `libmosey` in the path. The reverse-engineering record is
 [docs/REVERSE-ENGINEERING.md](docs/REVERSE-ENGINEERING.md).

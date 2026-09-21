@@ -169,16 +169,25 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     /// Set when the person cancels at the PIN prompt, so the outcome reads "Cancelled"
     /// rather than "Declined" -- which would blame the other device for our own choice.
     private boolean pinCancelled;
+    // The big top area is a single STAGE that morphs between waiting, an offer, a live
+    // transfer and a completion flash -- rather than scattering those across separate cards.
+    private enum Stage { IDLE, OFFER, TRANSFER, DONE }
+    private Stage stage = Stage.IDLE;
+
     private TextView progressLabel;
-    private ProgressBarView progressBar;
-    private LinearLayout progressCard;
-    // The transfer-review header: who, what, and a live state word — the AirDrop-style
-    // card that shows the person what is actually crossing, not just a bare bar.
+    private RingView progressRing;
+    // The live transfer view's parts: who, what, a state word, and the ring around the
+    // file's icon. Populated when the stage is TRANSFER, updated in place by updateProgress.
     private TextView progressPeer;
     private TextView progressBadge;
     private TextView progressState;
     private TextView progressWhat;
     private android.widget.FrameLayout progressIcon;
+    // The completion flash's content, held while the stage is DONE.
+    private String stageDoneWord;
+    private boolean stageDoneIncoming;
+    // The docked "recent" panel at the bottom, rebuilt per render.
+    private LinearLayout dock;
     // Bumped whenever a transfer begins or a "Done" flash is scheduled, so a delayed hide
     // only fires if nothing newer has taken the card over in the meantime.
     private long xferToken;
@@ -364,46 +373,37 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             new Thread(wifiDirectHost::remove, "tarish-group-release").start();
             main.post(() -> {
                 activeTransfer = 0;
-                boolean hadOffer = offerId != 0;
                 offerId = 0;   // whatever happened, the question is answered
-                hideProgress();
-                // An offer card is only torn down by a rebuild. showOutcome() in receive mode
-                // just updates the identity strip, so a card still up when the transfer ended
-                // -- e.g. the sender cancelled before we answered -- would stay on screen next
-                // to the outcome. Rebuild first so the card actually comes down.
-                if (hadOffer && !sendMode) {
-                    render();
-                }
+                dismissPin();
+                pinTransfer = 0;
                 if (pinCancelled) {
                     // Our own doing, not the peer's. The daemon reports this as declined
                     // because from its side a refused PIN and a refused transfer end the
                     // same way, and blaming the other device would be a lie.
                     pinCancelled = false;
-                    showOutcome("Cancelled", "you stopped it before anything was sent");
                     addRecord(TransferRecord.Outcome.CANCELLED, false,
                             xferPeerName, xferProtocol, xferNames, 0);
+                    endTransferIdle("Cancelled", "you stopped it before anything was sent");
                 } else if (status == STATUS_CANCELLED) {
-                    showOutcome("Cancelled", "the sender stopped it");
                     // Incoming: a cancel can arrive at the prompt before we ever accepted,
                     // so the offer context is the reliable source, not the xfer fields.
                     addRecord(TransferRecord.Outcome.CANCELLED, true,
                             offerFrom, offerProtocol, offerNames, offerBytes);
+                    endTransferIdle("Cancelled", "the sender stopped it");
                 } else if (status == STATUS_DECLINED) {
-                    // Someone pressed Decline. That is an answer, not a fault, and
-                    // saying "could not send" would invite a retry that gets refused
-                    // again.
-                    showOutcome("Declined", "the other device turned it down");
+                    // A Decline is an answer, not a fault; "could not send" would invite a
+                    // retry that gets refused again.
                     addRecord(TransferRecord.Outcome.DECLINED, false,
                             xferPeerName, xferProtocol, xferNames, 0);
+                    endTransferIdle("Declined", "the other device turned it down");
                 } else if (status == STATUS_FAILED) {
-                    showOutcome("Could not send", "the transfer did not complete");
                     addRecord(TransferRecord.Outcome.FAILED, !xferSending,
                             xferPeerName, xferProtocol, xferNames, xferSending ? 0 : offerBytes);
+                    endTransferIdle("Could not send", "the transfer did not complete");
                 } else if (!sendMode) {
                     collect();
                     completeTransfer("Received");
                 } else {
-                    showOutcome("Sent", describeShared() + " delivered");
                     addRecord(TransferRecord.Outcome.SENT, false,
                             xferPeerName, xferProtocol, xferNames, 0);
                     completeTransfer("Sent");
@@ -519,6 +519,16 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         page.addView(scroller, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
+        // The docked "recent" panel: pinned between the scrolling stage and the mode bar, so
+        // the history of what came in / went out is always in reach without scrolling past
+        // the transfer stage. Capped in height, and rebuilt each render by buildDock().
+        dock = new LinearLayout(this);
+        dock.setOrientation(LinearLayout.VERTICAL);
+        int dside = Ui.dp(this, 20);
+        dock.setPadding(dside, Ui.dp(this, 4), dside, Ui.dp(this, 6));
+        page.addView(dock, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
         nav = new BottomNav(this, this);
         nav.setBackgroundColor(Ui.surface(this));
         page.addView(nav);
@@ -528,6 +538,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     /** Rebuild the body for the current mode. */
     private void render() {
         content.removeAllViews();
+        if (dock != null) {
+            dock.removeAllViews();
+        }
         nav.setMode(sendMode);
         // Every path that changes the mode or the policy comes through here, so this is
         // the one place the screen-awake decision has to be made.
@@ -555,6 +568,28 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         } else {
             buildReceive();
         }
+        buildDock();
+    }
+
+    /**
+     * The docked recent panel, pinned at the bottom for the current direction.
+     *
+     * Received on the receive screen, sent on the send screen -- renderInbox filters by
+     * direction. Height-capped so a long history scrolls inside the dock instead of pushing
+     * the transfer stage off the top.
+     */
+    private void buildDock() {
+        if (dock == null || service == null) {
+            return;
+        }
+        inboxLabel = Ui.sectionLabel(this, sendMode ? "RECENT SENT" : "RECEIVED");
+        dock.addView(inboxLabel);
+        MaxHeightScrollView scroll = new MaxHeightScrollView(this, Ui.dp(this, 200));
+        inbox = Ui.cardBox(this);
+        inbox.setPadding(0, 0, 0, 0);
+        scroll.addView(inbox);
+        dock.addView(scroll);
+        renderInbox();
     }
 
     /** Shown when the daemon is not on this device. */
@@ -805,20 +840,84 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     private void buildReceive() {
-        if (offerId != 0) {
+        // The big top area is one stage that morphs. A live receive fills it with progress; a
+        // completion flashes there; an incoming offer takes it over; otherwise it is the
+        // pulsing "ready to receive" beacon (or, when we cannot be seen, why not).
+        if (stage == Stage.TRANSFER && !xferSending) {
+            content.addView(buildProgressStage());
+            return;
+        }
+        if (stage == Stage.DONE && stageDoneIncoming) {
+            content.addView(buildDoneStage());
+            return;
+        }
+        if (stage == Stage.OFFER && offerId != 0) {
             content.addView(Ui.sectionLabel(this, "Incoming"));
             content.addView(buildOfferCard());
+            return;
         }
-        content.addView(Ui.sectionLabel(this, "This device"));
-        content.addView(buildIdentityStrip());
-        content.addView(buildProgressCard());
+        if (discoverable) {
+            content.addView(buildWaitingHero());
+        } else {
+            // Not visible: say why (AirDrop off, radio down) instead of an empty screen.
+            content.addView(Ui.sectionLabel(this, "This device"));
+            content.addView(buildIdentityStrip());
+        }
+    }
 
-        inboxLabel = Ui.sectionLabel(this, "Inbox");
-        content.addView(inboxLabel);
-        inbox = Ui.cardBox(this);
-        inbox.setPadding(0, 0, 0, 0);
-        content.addView(inbox);
-        renderInbox();
+    /**
+     * The big "we are listening" beacon: a pulsing radar with a receive mark at its centre.
+     *
+     * This is the prominent version of the strip's little live dot -- readable from across
+     * the room, the way Quick Share's pulsing circle is. Only ever built while genuinely
+     * discoverable, so it never claims to be listening when the radio is down.
+     */
+    private View buildWaitingHero() {
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setGravity(Gravity.CENTER_HORIZONTAL);
+        LinearLayout.LayoutParams wlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        wlp.bottomMargin = Ui.dp(this, 8);
+        wrap.setLayoutParams(wlp);
+        int vpad = Ui.dp(this, 20);
+        wrap.setPadding(0, vpad, 0, vpad);
+
+        int size = Ui.dp(this, 132);
+        android.widget.FrameLayout radar = new android.widget.FrameLayout(this);
+
+        PulseView pulse = new PulseView(this);
+        pulse.setLive(true, Ui.live(this));
+        radar.addView(pulse, new android.widget.FrameLayout.LayoutParams(size, size));
+
+        // A quiet centre puck so the rings read as emitted from a source, not from nothing.
+        View puck = Ui.glyphInCircle(this, Glyph.Kind.DOWNLOAD, Ui.live(this),
+                Ui.surfaceSunk(this), 60);
+        int puckSize = Ui.dp(this, 60);
+        android.widget.FrameLayout.LayoutParams pp =
+                new android.widget.FrameLayout.LayoutParams(puckSize, puckSize);
+        pp.gravity = Gravity.CENTER;
+        radar.addView(puck, pp);
+
+        wrap.addView(radar, new LinearLayout.LayoutParams(size, size));
+
+        TextView title = Ui.text(this, "Ready to receive", 16, Ui.textColor(this), true);
+        title.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tlp.topMargin = Ui.dp(this, 16);
+        title.setLayoutParams(tlp);
+        wrap.addView(title);
+
+        TextView sub = Ui.text(this, "Visible to everyone nearby", 12, Ui.textFaint(this), false);
+        sub.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        slp.topMargin = Ui.dp(this, 3);
+        sub.setLayoutParams(slp);
+        wrap.addView(sub);
+
+        return wrap;
     }
 
     /**
@@ -998,20 +1097,32 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             return;
         }
         inbox.removeAllViews();
-        if (activity.isEmpty()) {
-            TextView empty = Ui.text(this, "Nothing yet", 13, Ui.textFaint(this), false);
+        // This screen shows only its OWN direction: the receive page lists what came in,
+        // the send page what went out. Mixing "Sent" rows into the receive page read as a
+        // bug -- a receive screen should not report sends.
+        List<TransferRecord> shown = new ArrayList<>();
+        for (TransferRecord r : activity) {
+            if (r.incoming == !sendMode) {
+                shown.add(r);
+            }
+        }
+        String label = sendMode ? "RECENT SENT" : "RECEIVED";
+        if (shown.isEmpty()) {
+            TextView empty = Ui.text(this,
+                    sendMode ? "Nothing sent yet" : "Nothing received yet",
+                    13, Ui.textFaint(this), false);
             int p = Ui.dp(this, 16);
             empty.setPadding(p, p, p, p);
             inbox.addView(empty);
-            inboxLabel.setText("RECENT");
+            inboxLabel.setText(label);
             return;
         }
-        inboxLabel.setText("RECENT  ·  " + activity.size());
-        for (int i = activity.size() - 1; i >= 0; i--) {
-            if (i < activity.size() - 1) {
+        inboxLabel.setText(label + "  ·  " + shown.size());
+        for (int i = shown.size() - 1; i >= 0; i--) {
+            if (i < shown.size() - 1) {
                 inbox.addView(Ui.rule(this));
             }
-            inbox.addView(recordRow(activity.get(i)));
+            inbox.addView(recordRow(shown.get(i)));
         }
     }
 
@@ -1123,22 +1234,73 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             return;
         }
         final Uri uri = f.uri;
+        final boolean video = r.icon() == Glyph.Kind.VIDEO;
         new Thread(() -> {
-            android.graphics.Bitmap b = null;
-            try {
-                b = getContentResolver().loadThumbnail(uri, new android.util.Size(120, 120), null);
-            } catch (Throwable t) {
-                // No thumbnail (a codec Android lacks, or a provider that won't make one).
-            }
-            final android.graphics.Bitmap ready = b;
+            android.graphics.Bitmap ready = loadPreview(uri, video);
             if (ready == null) {
                 return;
             }
+            final android.graphics.Bitmap bmp = ready;
             main.post(() -> {
-                r.thumb = ready;
-                paintThumb(holder, ready);
+                r.thumb = bmp;
+                paintThumb(holder, bmp);
             });
         }, "tarish-thumb").start();
+    }
+
+    /**
+     * A preview bitmap for a photo or video URI, robust across sources.
+     *
+     * loadThumbnail is the fast path but silently gives nothing for many videos in the
+     * Downloads collection and some SAF documents. So: try it, then fall back to pulling a
+     * frame from the video with MediaMetadataRetriever (works from any readable fd) or
+     * decoding an image stream downsampled. Logs which path won, so a missing preview is
+     * diagnosable rather than a silent nothing.
+     */
+    private android.graphics.Bitmap loadPreview(Uri uri, boolean video) {
+        try {
+            android.graphics.Bitmap b = getContentResolver()
+                    .loadThumbnail(uri, new android.util.Size(160, 160), null);
+            if (b != null) {
+                return b;
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "loadThumbnail failed for " + uri + " (" + t + "); falling back");
+        }
+        if (video) {
+            android.media.MediaMetadataRetriever r = new android.media.MediaMetadataRetriever();
+            try (ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r")) {
+                if (pfd == null) {
+                    return null;
+                }
+                r.setDataSource(pfd.getFileDescriptor());
+                android.graphics.Bitmap frame = r.getFrameAtTime(-1);
+                if (frame == null) {
+                    Log.w(TAG, "no video frame for " + uri);
+                }
+                return frame;
+            } catch (Throwable t) {
+                Log.w(TAG, "video frame extract failed for " + uri, t);
+                return null;
+            } finally {
+                try {
+                    r.release();
+                } catch (Throwable ignored) {
+                    // release() throwing tells us nothing useful.
+                }
+            }
+        }
+        try (java.io.InputStream in = getContentResolver().openInputStream(uri)) {
+            if (in == null) {
+                return null;
+            }
+            android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+            o.inSampleSize = 2;
+            return android.graphics.BitmapFactory.decodeStream(in, null, o);
+        } catch (Throwable t) {
+            Log.w(TAG, "image decode fallback failed for " + uri, t);
+            return null;
+        }
     }
 
     /** The full "who, when, how big, over what" for one activity entry. */
@@ -1306,109 +1468,150 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             hint.setPadding(0, Ui.dp(this, 10), 0, 0);
             content.addView(hint);
         }
+
+        // Sends belong here, not on the receive screen. renderInbox filters by direction,
+        // so on the send page this shows what went out (sent, declined, failed).
+        inboxLabel = Ui.sectionLabel(this, "RECENT SENT");
+        content.addView(inboxLabel);
+        inbox = Ui.cardBox(this);
+        inbox.setPadding(0, 0, 0, 0);
+        content.addView(inbox);
+        renderInbox();
+
         refreshPeers();
     }
 
-    private View buildProgressCard() {
-        progressCard = Ui.cardBox(this);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = Ui.dp(this, 12);
-        progressCard.setLayoutParams(lp);
-        progressCard.setVisibility(View.GONE);
+    /**
+     * The live transfer, filling the big stage: a progress ring around the file's icon, the
+     * peer, a state word, the file(s), a byte line with speed and ETA, and Cancel. Reads the
+     * xfer* fields (set by beginTransfer); updateProgress then updates the ring and byte line
+     * in place. This is the AirDrop-style progress, using the whole area rather than a strip.
+     */
+    private View buildProgressStage() {
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setGravity(Gravity.CENTER_HORIZONTAL);
+        wrap.setPadding(0, Ui.dp(this, 18), 0, Ui.dp(this, 18));
 
-        // The review, like AirDrop: a file-type mark, who is on the other end, a live state
-        // word, and what is crossing -- so a transfer is never an anonymous bar creeping
-        // across the screen. topRow is [icon] [ peer/state/badge + what ].
-        LinearLayout topRow = new LinearLayout(this);
-        topRow.setOrientation(LinearLayout.HORIZONTAL);
-        topRow.setGravity(Gravity.CENTER_VERTICAL);
-
-        // A holder, so the mark can be swapped for a real thumbnail on send, or for a jade
-        // check when the transfer completes, without rebuilding the row.
+        int ringBox = Ui.dp(this, 148);
+        android.widget.FrameLayout ring = new android.widget.FrameLayout(this);
+        progressRing = new RingView(this);
+        progressRing.setColor(Ui.accent(this));
+        progressRing.setIndeterminate(true);
+        ring.addView(progressRing, new android.widget.FrameLayout.LayoutParams(ringBox, ringBox));
         progressIcon = new android.widget.FrameLayout(this);
-        int iconBox = Ui.dp(this, 40);
-        topRow.addView(progressIcon, new LinearLayout.LayoutParams(iconBox, iconBox));
+        int iconBox = Ui.dp(this, 64);
+        android.widget.FrameLayout.LayoutParams ip =
+                new android.widget.FrameLayout.LayoutParams(iconBox, iconBox);
+        ip.gravity = Gravity.CENTER;
+        ring.addView(progressIcon, ip);
+        setCardIcon(Glyph.kindForNames(xferNames), Ui.accent(this));   // fills progressIcon
+        wrap.addView(ring, new LinearLayout.LayoutParams(ringBox, ringBox));
 
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams colLp =
-                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        colLp.leftMargin = Ui.dp(this, 12);
-        col.setLayoutParams(colLp);
-
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        progressPeer = Ui.text(this, "", 15, Ui.textColor(this), true);
-        header.addView(progressPeer,
-                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        progressState = Ui.text(this, "", 11, Ui.accent(this), true);
+        progressState = Ui.text(this, xferSending ? "SENDING" : "RECEIVING", 11,
+                Ui.accent(this), true);
         progressState.setAllCaps(true);
-        progressState.setLetterSpacing(0.06f);
-        progressState.setPadding(Ui.dp(this, 8), 0, Ui.dp(this, 8), 0);
-        header.addView(progressState);
-        progressBadge = Ui.badge(this, "AirDrop");
-        header.addView(progressBadge);
-        col.addView(header);
+        progressState.setLetterSpacing(0.08f);
+        progressState.setGravity(Gravity.CENTER);
+        wrap.addView(progressState, centeredTop(16));
 
-        // What is crossing: file name(s), a count when there is more than one, and size.
-        progressWhat = Ui.text(this, "", 13, Ui.textFaint(this), false);
-        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        wp.topMargin = Ui.dp(this, 3);
-        progressWhat.setLayoutParams(wp);
-        col.addView(progressWhat);
+        progressPeer = Ui.text(this, xferPeerName == null || xferPeerName.isEmpty()
+                ? "A nearby device" : xferPeerName, 17, Ui.textColor(this), true);
+        progressPeer.setGravity(Gravity.CENTER);
+        wrap.addView(progressPeer, centeredTop(2));
 
-        topRow.addView(col);
-        LinearLayout.LayoutParams trp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        trp.bottomMargin = Ui.dp(this, 12);
-        topRow.setLayoutParams(trp);
-        progressCard.addView(topRow);
+        progressWhat = Ui.text(this, describeXfer(), 13, Ui.textFaint(this), false);
+        progressWhat.setGravity(Gravity.CENTER);
+        wrap.addView(progressWhat, centeredTop(2));
 
-        progressBar = new ProgressBarView(this);
-        progressCard.addView(progressBar, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 6)));
-
-        LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, Ui.dp(this, 12), 0, 0);
-        // Tabular: this counts up several times a second, and proportional digits make
-        // the whole line jump sideways on every tick.
+        // Tabular: it counts up several times a second, and proportional digits make the
+        // whole line jump sideways on every tick.
         progressLabel = Ui.tabular(Ui.text(this, "", 13, Ui.textMuted(this), false));
-        LinearLayout.LayoutParams tp =
-                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        progressLabel.setLayoutParams(tp);
-        row.addView(progressLabel);
+        progressLabel.setGravity(Gravity.CENTER);
+        wrap.addView(progressLabel, centeredTop(8));
 
         TextView cancel = Ui.text(this, "Cancel", 13, Ui.onAccent(this), true);
-        cancel.setPadding(Ui.dp(this, 18), Ui.dp(this, 8), Ui.dp(this, 18), Ui.dp(this, 8));
-        cancel.setBackground(Ui.card(this, Ui.accentFill(this), Color.TRANSPARENT, 18));
+        cancel.setGravity(Gravity.CENTER);
+        cancel.setPadding(Ui.dp(this, 26), Ui.dp(this, 10), Ui.dp(this, 26), Ui.dp(this, 10));
+        cancel.setBackground(Ui.card(this, Ui.accentFill(this), Color.TRANSPARENT, 20));
         cancel.setOnClickListener(v -> cancelActive());
-        row.addView(cancel);
-        progressCard.addView(row);
-        return progressCard;
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        cp.topMargin = Ui.dp(this, 18);
+        cancel.setLayoutParams(cp);
+        wrap.addView(cancel);
+
+        // On send we hold the file, so a single image/video shows a real thumbnail in the ring.
+        if (xferSending) {
+            maybeLoadSendThumbnail();
+        }
+        return wrap;
+    }
+
+    /** The completion flash filling the stage: a full jade ring, a check, the outcome and peer. */
+    private View buildDoneStage() {
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setGravity(Gravity.CENTER_HORIZONTAL);
+        wrap.setPadding(0, Ui.dp(this, 18), 0, Ui.dp(this, 18));
+
+        int ringBox = Ui.dp(this, 148);
+        android.widget.FrameLayout ring = new android.widget.FrameLayout(this);
+        RingView r = new RingView(this);
+        r.setColor(Ui.live(this));
+        r.setFraction(1f);
+        ring.addView(r, new android.widget.FrameLayout.LayoutParams(ringBox, ringBox));
+        View check = Ui.glyphInCircle(this, Glyph.Kind.CHECK, Ui.live(this),
+                Ui.surfaceSunk(this), 64);
+        int iconBox = Ui.dp(this, 64);
+        android.widget.FrameLayout.LayoutParams ip =
+                new android.widget.FrameLayout.LayoutParams(iconBox, iconBox);
+        ip.gravity = Gravity.CENTER;
+        ring.addView(check, ip);
+        wrap.addView(ring, new LinearLayout.LayoutParams(ringBox, ringBox));
+
+        TextView word = Ui.text(this, stageDoneWord == null ? "Done" : stageDoneWord,
+                18, Ui.live(this), true);
+        word.setGravity(Gravity.CENTER);
+        wrap.addView(word, centeredTop(16));
+
+        TextView peer = Ui.text(this, xferPeerName == null || xferPeerName.isEmpty()
+                ? "" : (stageDoneIncoming ? "from " : "to ") + xferPeerName,
+                13, Ui.textFaint(this), false);
+        peer.setGravity(Gravity.CENTER);
+        wrap.addView(peer, centeredTop(2));
+        return wrap;
+    }
+
+    /** A full-width, top-margined, centered layout param — the stage stacks these. */
+    private LinearLayout.LayoutParams centeredTop(int topDp) {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        p.topMargin = Ui.dp(this, topDp);
+        return p;
+    }
+
+    /** File name(s)/count for the current transfer. */
+    private String describeXfer() {
+        if (xferNames == null || xferNames.length == 0) {
+            return "";
+        }
+        return xferNames.length == 1 ? xferNames[0] : xferNames.length + " files";
     }
 
     /**
-     * Open the transfer card for a run that is starting.
-     *
-     * The bar goes indeterminate: nothing is flowing yet -- this is the AirDrop rendezvous
-     * and handshake -- and a determinate bar frozen at 0 reads as stuck. {@link
-     * #updateProgress} flips it to determinate the moment real bytes arrive.
+     * Begin a transfer: stash its context, reset speed tracking, and switch the stage to the
+     * live progress view. render() builds buildProgressStage from these fields; updateProgress
+     * then updates the ring and byte line in place.
      *
      * @param peer     the device on the other end
-     * @param what     file name(s), which {@link #updateProgress} will suffix with the size
-     * @param protocol AirDrop or Quick Share, for the badge
-     * @param sending  true when we are the sender, for the state word
-     * @param names    file/note names, for the type mark and the activity record
+     * @param what     unused now (kept for call sites); the stage derives its text from names
+     * @param protocol AirDrop or Quick Share
+     * @param sending  true when we are the sender
+     * @param names    file/note names, for the icon, the record, and the "what" line
      */
     private void beginTransfer(String peer, String what, int protocol, boolean sending,
                               String[] names) {
-        if (progressCard == null) {
-            return;
-        }
         xferSending = sending;
         xferPeerName = peer;
         xferProtocol = protocol;
@@ -1417,18 +1620,19 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         xferLastMs = xferStartMs;
         xferLastBytes = 0;
         xferRate = 0;
-        xferToken++;   // a fresh transfer cancels any pending "Done" hide
+        xferToken++;   // a fresh transfer cancels any pending "Done -> idle" hide
+        stage = Stage.TRANSFER;
+        render();
+    }
 
-        progressPeer.setText(peer == null || peer.isEmpty() ? "A nearby device" : peer);
-        progressBadge.setText(protocol == ITarishService.PROTOCOL_QUICKSHARE
-                ? "Quick Share" : "AirDrop");
-        progressWhat.setText(what == null ? "" : what);
-        progressWhat.setVisibility(what == null || what.isEmpty() ? View.GONE : View.VISIBLE);
-        setCardIcon(Glyph.kindForNames(xferNames), Ui.accent(this));
-        setProgressState("Waiting", Ui.accent(this));
-        progressLabel.setText("");
-        progressBar.setIndeterminate(true);
-        progressCard.setVisibility(View.VISIBLE);
+    /** Return the stage to idle, recording a send-side outcome on the way if there is one. */
+    private void endTransferIdle(String sendTitle, String sendDetail) {
+        if (sendMode) {
+            outcomeTitle = sendTitle;
+            outcomeDetail = sendDetail;
+        }
+        stage = Stage.IDLE;
+        render();
     }
 
     /** Put a type mark on the card, tinted for the current state. */
@@ -1473,17 +1677,12 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         if (type == null || !(type.startsWith("image/") || type.startsWith("video/"))) {
             return;
         }
+        final boolean video = type.startsWith("video/");
         final long token = xferToken;
         new Thread(() -> {
-            android.graphics.Bitmap bmp = null;
-            try {
-                bmp = getContentResolver().loadThumbnail(
-                        uri, new android.util.Size(120, 120), null);
-            } catch (Throwable t) {
-                Log.w(TAG, "could not load a send thumbnail", t);
-            }
-            final android.graphics.Bitmap ready = bmp;
+            android.graphics.Bitmap ready = loadPreview(uri, video);
             if (ready == null) {
+                Log.w(TAG, "no send preview for " + uri);
                 return;
             }
             main.post(() -> {
@@ -1510,20 +1709,21 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * so a new transfer that starts inside the window keeps its own card.
      */
     private void completeTransfer(String word) {
-        if (progressCard == null) {
-            return;
-        }
-        progressCard.setVisibility(View.VISIBLE);
-        progressBar.setFraction(1f);
-        setProgressState(word, Ui.live(this));
-        setCardIcon(Glyph.Kind.CHECK, Ui.live(this));
+        stageDoneWord = word;
+        stageDoneIncoming = !xferSending;
+        stage = Stage.DONE;
         hapticDone();
+        render();
+        // Hold the flash briefly, then fall back to idle (the beacon on receive, the send
+        // controls on send). Guarded so a new transfer inside the window keeps its own stage.
         final long token = ++xferToken;
         main.postDelayed(() -> {
             if (token == xferToken && activeTransfer == 0) {
-                hideProgress();
+                stage = Stage.IDLE;
+                stageDoneWord = null;
+                render();
             }
-        }, 1500);
+        }, 1600);
     }
 
     /**

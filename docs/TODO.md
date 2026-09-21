@@ -255,7 +255,7 @@ change to know how to make, so it is a decision rather than a scramble.
 ### Do not re-derive this
 
 - The prompt is **Apple-to-Apple only** as of 2026-09, confirmed against both Tarish and
-  stock Quick Share. An earlier note in `tarish-libawdl/docs/FINDINGS.md` claimed it was
+  stock Quick Share. An earlier note in `tarish-link/docs/FINDINGS.md` claimed it was
   already a threat to us; that was withdrawn.
 - It lives **above AWDL**, in the TLS `/Ask` exchange on port 8770. It is invisible to an
   over-the-air capture and can only be observed from an endpoint — which means from our own
