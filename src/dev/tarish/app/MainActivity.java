@@ -1404,6 +1404,16 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     private void buildSend() {
+        // The send area morphs like receive: a live send fills it with the progress stage,
+        // a completion flashes there, otherwise the file/note controls and the peer list.
+        if (stage == Stage.TRANSFER && xferSending) {
+            content.addView(buildProgressStage());
+            return;
+        }
+        if (stage == Stage.DONE && !stageDoneIncoming) {
+            content.addView(buildDoneStage());
+            return;
+        }
         content.addView(Ui.sectionLabel(this, "Files"));
         LinearLayout files = Ui.cardBox(this);
         files.setOrientation(LinearLayout.HORIZONTAL);
@@ -1442,8 +1452,6 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         note.setPadding(Ui.dp(this, 4), Ui.dp(this, 10), 0, Ui.dp(this, 2));
         note.setOnClickListener(v -> composeNote());
         content.addView(note);
-
-        content.addView(buildProgressCard());
 
         // Choosing again clears a previous outcome, so the row stops reporting a
         // transfer the user has moved on from.
@@ -1697,8 +1705,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             }
             main.post(() -> {
                 // Nothing newer took the card, and it is still up.
-                if (token != xferToken || progressCard == null
-                        || progressCard.getVisibility() != View.VISIBLE) {
+                if (token != xferToken || stage != Stage.TRANSFER || progressIcon == null) {
                     return;
                 }
                 android.widget.ImageView iv = new android.widget.ImageView(this);
@@ -1744,14 +1751,15 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * with a generic header rather than dropping the update on the floor.
      */
     private void updateProgress(long done, long total) {
-        if (progressCard == null) {
-            return;
-        }
-        if (progressCard.getVisibility() != View.VISIBLE) {
+        if (stage != Stage.TRANSFER) {
+            // A transfer nobody announced (auto-accept, no offer): open the stage so the
+            // update has somewhere to land rather than being dropped on the floor.
             beginTransfer(offerFrom != null ? offerFrom : "A nearby device",
                     describeOffer(), offerProtocol, false, offerNames);
         }
-        progressCard.setVisibility(View.VISIBLE);
+        if (progressRing == null) {
+            return;
+        }
 
         long now = android.os.SystemClock.elapsedRealtime();
         long dt = now - xferLastMs;
@@ -1764,9 +1772,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
 
         setProgressState(xferSending ? "Sending" : "Receiving", Ui.accent(this));
         if (total > 0) {
-            progressBar.setFraction((float) done / total);
+            progressRing.setFraction((float) done / total);
         } else {
-            progressBar.setIndeterminate(true);
+            progressRing.setIndeterminate(true);
         }
 
         StringBuilder line = new StringBuilder();
@@ -1971,8 +1979,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     private void hideProgress() {
-        if (progressCard != null) {
-            progressCard.setVisibility(View.GONE);
+        if (stage == Stage.TRANSFER || stage == Stage.DONE) {
+            stage = Stage.IDLE;
+            render();
         }
         // The prompt is modal and owns its own lifetime, but a transfer that ends while
         // it is up must not leave it there.
