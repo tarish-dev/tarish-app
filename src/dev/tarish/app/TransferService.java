@@ -192,6 +192,8 @@ public final class TransferService extends Service {
         @Override public void onTransferOffered(long id, String peerId, String[] names,
                 long totalBytes, int protocol) {}
         @Override public void onTransferPinRequired(long id) {}
+        // The PIN is shown by MainActivity (a background service has no screen); no-op here.
+        @Override public void onTransferPinDisplay(long id, String pin) {}
 
         /**
          * THE SERVICE OWNS THIS, not the activity.
