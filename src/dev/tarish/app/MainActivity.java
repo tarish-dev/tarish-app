@@ -263,6 +263,11 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 offerNames = names == null ? new String[0] : names;
                 offerBytes = bytes;
                 offerProtocol = protocol;
+                // ENTER THE OFFER STAGE. buildReceive() only draws the accept card while
+                // stage == Stage.OFFER, so without this the offer arrives, offerId is set,
+                // and nothing shows — the daemon then refuses it as unanswered after 45s.
+                // (The stage-UI redesign added this gate and never set the stage here.)
+                stage = Stage.OFFER;
                 // A genuine incoming request the person may not be looking at — buzz for it.
                 hapticOffer();
                 if (sendMode) {
@@ -1032,6 +1037,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             }
             beginTransfer(offerFrom, what, offerProtocol, false, offerNames);
         } else {
+            // Declined: leave the OFFER stage so the screen returns to the beacon.
+            stage = Stage.IDLE;
             render();
         }
     }
