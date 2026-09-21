@@ -1,6 +1,7 @@
 package dev.tarish.app;
 
 import android.app.Activity;
+import android.content.Context;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -57,6 +58,12 @@ public final class SettingsActivity extends Activity {
         if (service == null) {
             Log.w(TAG, "daemon did not publish " + SERVICE_NAME);
         }
+    }
+
+    // Force the chosen Light/Dark (or leave the system's) before any resource resolves.
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(Theme.wrap(base));
     }
 
     @Override
@@ -253,7 +260,60 @@ public final class SettingsActivity extends Activity {
                 + " not its address. Reset it to appear as a brand-new device. Good for"
                 + " privacy; devices that saved you will no longer recognise you.");
 
+        // ---- appearance --------------------------------------------------------
+        space(16);
+        content.addView(Ui.sectionLabel(this, "APPEARANCE"));
+        appearanceControl();
+        caption("System follows your device's light or dark setting.");
+
         space(24);
+    }
+
+    /** A three-way segmented control: System / Light / Dark. */
+    private void appearanceControl() {
+        int current = Theme.mode(this);
+        int[] modes = { Theme.SYSTEM, Theme.LIGHT, Theme.DARK };
+        String[] labels = { "System", "Light", "Dark" };
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+
+        for (int i = 0; i < modes.length; i++) {
+            int mode = modes[i];
+            boolean selected = mode == current;
+
+            TextView seg = Ui.text(this, labels[i], 14,
+                    selected ? Ui.bg(this) : Ui.textColor(this), selected);
+            seg.setGravity(Gravity.CENTER);
+            int vp = Ui.dp(this, 10);
+            seg.setPadding(vp, vp, vp, vp);
+            if (selected) {
+                android.graphics.drawable.GradientDrawable g =
+                        new android.graphics.drawable.GradientDrawable();
+                g.setColor(Ui.accent(this));
+                g.setCornerRadius(Ui.dp(this, 8));
+                seg.setBackground(g);
+            }
+            seg.setOnClickListener(v -> {
+                if (mode == Theme.mode(this)) {
+                    return;
+                }
+                Theme.setMode(this, mode);
+                // Rebuild this screen under the new appearance; MainActivity re-themes
+                // itself in onResume when it sees the choice changed.
+                recreate();
+            });
+
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            int gap = Ui.dp(this, 4);
+            lp.setMargins(i == 0 ? 0 : gap, 0, i == modes.length - 1 ? 0 : gap, 0);
+            row.addView(seg, lp);
+        }
+
+        LinearLayout card = Ui.cardBox(this);
+        card.addView(row);
+        content.addView(card);
     }
 
     /** Two-step, because the trade is real: continuity for privacy, and it cannot be undone. */

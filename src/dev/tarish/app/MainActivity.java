@@ -414,9 +414,19 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
 
     // ------------------------------------------------------------------ ui ---
 
+    /** The appearance this instance was built under, so onResume can tell it changed. */
+    private int themeMode;
+
+    // Force the chosen Light/Dark (or leave the system's) before any resource resolves.
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(Theme.wrap(base));
+    }
+
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        themeMode = Theme.mode(this);
         startDebugBridge();
         radios = new Radios(this);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -2110,6 +2120,12 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     @Override
     protected void onResume() {
         super.onResume();
+        // The appearance may have changed in Settings while this screen was stopped.
+        // attachBaseContext only re-runs on a fresh instance, so rebuild to pick it up.
+        if (Theme.mode(this) != themeMode) {
+            recreate();
+            return;
+        }
         if (service == null) {
             connect();
         }
