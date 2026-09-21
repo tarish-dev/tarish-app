@@ -1772,7 +1772,12 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             xferLastBytes = done;
         }
 
-        setProgressState(xferSending ? "Sending" : "Receiving", Ui.accent(this));
+        // Waiting (no total yet) keeps the ring spinning; once bytes flow, show the
+        // percentage on the state line and fill the ring to match.
+        int pct = total > 0 ? (int) (done * 100 / total) : -1;
+        setProgressState(
+                (xferSending ? "Sending" : "Receiving") + (pct >= 0 ? "  ·  " + pct + "%" : ""),
+                Ui.accent(this));
         if (total > 0) {
             progressRing.setFraction((float) done / total);
         } else {
