@@ -355,6 +355,9 @@ public final class TransferService extends Service {
             }
             service = null;
         }
+        // Return the Wi-Fi Direct channel's binder to system_server rather than leaking it
+        // for the life of the process.
+        host.dispose();
         super.onDestroy();
     }
 

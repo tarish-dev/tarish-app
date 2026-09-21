@@ -165,6 +165,13 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private android.app.AlertDialog pinDialog;
     /** Receiver-side: shows the session code to read out to the sender. */
     private android.app.AlertDialog pinShowDialog;
+    /**
+     * Receiver-side: the session code, held until the person ACCEPTS. The daemon derives and
+     * sends it with the offer (before any answer), but showing it then put a code on screen
+     * over the Accept/Decline card -- codes before consent. Shown once the offer is accepted,
+     * which is also when the sender starts asking for it.
+     */
+    private String pendingReceiverPin;
     private TextView pinMessage;
     private EditText pinEntry;
     private long pinTransfer;
@@ -318,8 +325,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
 
         @Override
         public void onTransferPinDisplay(long id, String pin) {
-            // RECEIVER side: show the code so the person can read it to the sender.
-            main.post(() -> showReceiverPin(pin));
+            // RECEIVER side: hold the code until the person accepts. Showing it now would put
+            // it over the Accept/Decline card, before any consent. answerOffer() shows it.
+            main.post(() -> pendingReceiverPin = pin);
         }
 
         /**
@@ -1044,8 +1052,15 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 what = what.isEmpty() ? Ui.size(offerBytes) : what + "  ·  " + Ui.size(offerBytes);
             }
             beginTransfer(offerFrom, what, offerProtocol, false, offerNames);
+            // NOW show the code, if the sender's transfer carries one -- after consent, and
+            // at the moment the sender begins asking the person to type it.
+            if (pendingReceiverPin != null) {
+                showReceiverPin(pendingReceiverPin);
+            }
         } else {
-            // Declined: leave the OFFER stage so the screen returns to the beacon.
+            // Declined: leave the OFFER stage so the screen returns to the beacon. Drop the
+            // code with it -- there is no sender left to read it to.
+            pendingReceiverPin = null;
             stage = Stage.IDLE;
             render();
         }
@@ -2001,6 +2016,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     private void dismissReceiverPin() {
+        pendingReceiverPin = null;
         if (pinShowDialog != null) {
             try {
                 pinShowDialog.dismiss();

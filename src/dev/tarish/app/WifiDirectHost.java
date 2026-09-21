@@ -80,12 +80,22 @@ final class WifiDirectHost {
         // failure names nothing that points at the real cause.
         remove();
 
-        manager = (WifiP2pManager) ctx.getSystemService(Context.WIFI_P2P_SERVICE);
+        if (manager == null) {
+            manager = (WifiP2pManager) ctx.getSystemService(Context.WIFI_P2P_SERVICE);
+        }
         if (manager == null) {
             Log.i(TAG, "no Wi-Fi Direct on this device");
             return none;
         }
-        channel = manager.initialize(ctx, ctx.getMainLooper(), null);
+        // ONE Channel for this host's whole lifetime. Every initialize() registers an
+        // IBinder with WifiP2pService (system_server); re-initializing on each create() and
+        // never closing it leaked one binder per attempt. The daemon re-asks for a group
+        // every 2s and fans the request out to every registered callback, so with a stacked
+        // callback list that became thousands of Channels -> the receiver was killed for
+        // "too many Binders sent to uid 1000". Reuse the Channel; dispose() closes it.
+        if (channel == null) {
+            channel = manager.initialize(ctx, ctx.getMainLooper(), null);
+        }
         if (channel == null) {
             Log.w(TAG, "WifiP2pManager.initialize returned null");
             return none;
@@ -162,6 +172,25 @@ final class WifiDirectHost {
             watcher = null;
         }
         remove();
+    }
+
+    /**
+     * Release the group AND close the WifiP2pManager channel. Call when the owning component
+     * is torn down (e.g. TransferService.onDestroy) -- the channel holds a binder in
+     * system_server that lives until it is closed, and reusing one across transfers only
+     * helps if it is eventually returned.
+     */
+    synchronized void dispose() {
+        remove();
+        if (channel != null) {
+            try {
+                channel.close();
+            } catch (Exception ignored) {
+                // Already gone, or the adapter cycled and took it with it.
+            }
+            channel = null;
+        }
+        manager = null;
     }
 
     /** Fire a WifiP2pManager call and wait for its own success/failure, not for the link. */
