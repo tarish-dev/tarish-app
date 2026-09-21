@@ -69,6 +69,10 @@ public final class TransferService extends Service {
     private String label = "";
     private boolean sending = true;
 
+    // Progress-notification throttle: see onTransferProgress.
+    private long lastNotifyMs = 0;
+    private int lastPercent = -1;
+
     /**
      * Start watching a transfer, or update the one being watched.
      *
@@ -224,6 +228,19 @@ public final class TransferService extends Service {
             if (id != transfer) {
                 return;
             }
+            // THROTTLE. Every notify() posts a Notification (which carries a Binder token) to
+            // system_server, and a slow transport delivers thousands of progress ticks -- the
+            // receiver was killed mid-transfer for "too many Binders sent to uid 1000". The
+            // daemon now throttles too, but this is the last line of defence: at most one post
+            // per ~400 ms or per 1%, and always the final 100%.
+            long now = android.os.SystemClock.uptimeMillis();
+            int percent = total > 0 ? (int) Math.min(100, done * 100 / total) : -1;
+            boolean done100 = total > 0 && done >= total;
+            if (!done100 && percent == lastPercent && now - lastNotifyMs < 400L) {
+                return;
+            }
+            lastNotifyMs = now;
+            lastPercent = percent;
             notifications.notify(ONGOING_ID, ongoing(done, total));
         }
 
