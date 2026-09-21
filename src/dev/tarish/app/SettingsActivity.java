@@ -269,7 +269,72 @@ public final class SettingsActivity extends Activity {
                 + " not its address. Reset it to appear as a brand-new device. Good for"
                 + " privacy; devices that saved you will no longer recognise you.");
 
+        // ---- about -------------------------------------------------------------
+        // Three components, three versions: the app (this package), the daemon (over
+        // AIDL), and the AWDL stack "link" (the daemon reports the shim it loaded).
+        space(16);
+        content.addView(Ui.sectionLabel(this, "ABOUT"));
+        LinearLayout about = Ui.cardBox(this);
+        about.addView(versionRow("App", appVersion()));
+        about.addView(Ui.rule(this));
+        about.addView(versionRow("Daemon", daemonVersion()));
+        about.addView(Ui.rule(this));
+        about.addView(versionRow("Link", linkVersion()));
+        content.addView(about);
+        caption("Tarish — open AirDrop and Quick Share, no Google account.");
+
         space(24);
+    }
+
+    private String appVersion() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            return "?";
+        }
+    }
+
+    private String daemonVersion() {
+        if (service == null) {
+            connect();
+        }
+        if (service == null) {
+            return "unavailable";
+        }
+        try {
+            return service.getDaemonVersion();
+        } catch (Exception e) {
+            Log.w(TAG, "getDaemonVersion failed", e);
+            return "?";
+        }
+    }
+
+    private String linkVersion() {
+        if (service == null) {
+            connect();
+        }
+        if (service == null) {
+            return "unavailable";
+        }
+        try {
+            return service.getLinkVersion();
+        } catch (Exception e) {
+            Log.w(TAG, "getLinkVersion failed", e);
+            return "?";
+        }
+    }
+
+    /** A left-aligned label with the version on the right, matching the toggle rows. */
+    private LinearLayout versionRow(String label, String value) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        int p = Ui.dp(this, 12);
+        row.setPadding(p, p, p, p);
+        row.addView(Ui.text(this, label, 15, Ui.textColor(this), false),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(Ui.text(this, value == null ? "?" : value, 14, Ui.textFaint(this), false));
+        return row;
     }
 
     /** A three-way segmented control: System / Light / Dark. */

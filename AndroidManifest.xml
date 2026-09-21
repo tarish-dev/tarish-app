@@ -13,7 +13,9 @@
   the app has to be a real "no".
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="dev.tarish.app">
+    package="dev.tarish.app"
+    android:versionCode="30"
+    android:versionName="0.3.0">
 
     <!--
       Android 12 split the old BLUETOOTH/BLUETOOTH_ADMIN pair into these. They are
