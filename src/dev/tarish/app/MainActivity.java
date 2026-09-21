@@ -1487,14 +1487,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             content.addView(hint);
         }
 
-        // Sends belong here, not on the receive screen. renderInbox filters by direction,
-        // so on the send page this shows what went out (sent, declined, failed).
-        inboxLabel = Ui.sectionLabel(this, "RECENT SENT");
-        content.addView(inboxLabel);
-        inbox = Ui.cardBox(this);
-        inbox.setPadding(0, 0, 0, 0);
-        content.addView(inbox);
-        renderInbox();
+        // The recent list (sent / declined / failed) is the docked panel that buildDock()
+        // renders for both directions -- it used to be built inline here too, which put a
+        // second "RECENT SENT" on the send page.
 
         refreshPeers();
     }

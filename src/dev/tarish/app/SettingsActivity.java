@@ -156,6 +156,15 @@ public final class SettingsActivity extends Activity {
         }
         space(10);
 
+        // ---- appearance --------------------------------------------------------
+        // First: it is the setting most people come here to change, and it is the one
+        // control that is never managed, so it should not sit below the policy fields.
+        content.addView(Ui.sectionLabel(this, "APPEARANCE"));
+        appearanceControl();
+        caption("System follows your device's light or dark setting.");
+
+        space(16);
+
         // ---- device name -------------------------------------------------------
         content.addView(Ui.sectionLabel(this, "DEVICE NAME"));
         LinearLayout nameCard = Ui.cardBox(this);
@@ -259,12 +268,6 @@ public final class SettingsActivity extends Activity {
         caption("Apple devices remember this phone by a random handle — not your name and"
                 + " not its address. Reset it to appear as a brand-new device. Good for"
                 + " privacy; devices that saved you will no longer recognise you.");
-
-        // ---- appearance --------------------------------------------------------
-        space(16);
-        content.addView(Ui.sectionLabel(this, "APPEARANCE"));
-        appearanceControl();
-        caption("System follows your device's light or dark setting.");
 
         space(24);
     }
