@@ -214,24 +214,11 @@ public final class SettingsActivity extends Activity {
         space(16);
         content.addView(Ui.sectionLabel(this, "QUICK SHARE  ·  ANDROID AND WINDOWS"));
         protocolCard(false);
-
-        // Quick Share only, and it governs SENDING -- which is why it sits here under
-        // Quick Share rather than with the incoming-transfer prompt below. AirDrop has no
-        // equivalent: its confirmation is on the receiving device, a different question.
-        LinearLayout pinCard = Ui.cardBox(this);
-        pinCard.addView(toggle("Require PIN confirmation for sending",
-                policy.requirePin,
-                !policy.requirePinManaged,
-                on -> {
-                    store.setUserRequirePin(on);
-                    policy.requirePin = on;
-                    push();
-                }));
-        content.addView(pinCard);
         caption(policy.requirePinManaged
-                ? "Set by your organization."
-                : "When on, you type the PIN shown on the other device before anything is"
-                        + " sent. When off, files are sent as soon as the other device"
+                ? "Require PIN is set by your organization."
+                : "Require PIN to send: the receiver shows a code and tells it to you; you"
+                        + " enter it before anything is sent, so you know you're sending to"
+                        + " the right person. Off: files send as soon as the other device"
                         + " accepts.");
 
         // ---- confirmation ------------------------------------------------------
@@ -434,14 +421,24 @@ public final class SettingsActivity extends Activity {
             int updated = PolicyStore.withSend(currentMode(airdrop), on);
             apply(airdrop, key, updated);
         }));
+        // "Require PIN" governs Quick Share SENDING only, so it belongs inside this card
+        // rather than floating on its own. AirDrop has no equivalent (its check is on the
+        // receiving device).
+        if (!airdrop) {
+            card.addView(Ui.rule(this));
+            card.addView(toggle("Require PIN to send",
+                    policy.requirePin,
+                    !policy.requirePinManaged,
+                    on -> {
+                        store.setUserRequirePin(on);
+                        policy.requirePin = on;
+                        push();
+                    }));
+        }
         content.addView(card);
 
         if (managed) {
             caption("Set by your organization.");
-        } else if (!airdrop) {
-            // Said plainly rather than letting a switch imply a capability that is not
-            // finished. Quick Share discovery works; the transfer stack does not yet.
-            caption("Quick Share is still in development on this build.");
         }
     }
 

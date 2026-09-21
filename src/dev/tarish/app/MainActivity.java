@@ -163,6 +163,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private final List<TransferRecord> activity = new ArrayList<>();
     private LinearLayout peerBox;
     private android.app.AlertDialog pinDialog;
+    /** Receiver-side: shows the session code to read out to the sender. */
+    private android.app.AlertDialog pinShowDialog;
     private TextView pinMessage;
     private EditText pinEntry;
     private long pinTransfer;
@@ -312,6 +314,12 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 }
                 askForPin(id);
             });
+        }
+
+        @Override
+        public void onTransferPinDisplay(long id, String pin) {
+            // RECEIVER side: show the code so the person can read it to the sender.
+            main.post(() -> showReceiverPin(pin));
         }
 
         /**
@@ -1965,6 +1973,40 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 // Dismissing a dialog whose activity is gone is not worth a crash.
             }
             pinDialog = null;
+        }
+        dismissReceiverPin();
+    }
+
+    /**
+     * Receiver-side: show the session code to read out to the sender.
+     *
+     * The PIN protects the SENDER ("am I sending to the right device?"), so it is shown
+     * here on the receiver and spoken across, then typed on the sender. Cleared when the
+     * transfer ends (dismissPin, from onTransferFinished).
+     */
+    private void showReceiverPin(String pin) {
+        dismissReceiverPin();
+        TextView code = Ui.text(this, pin == null ? "----" : pin, 34, Ui.accent(this), true);
+        code.setGravity(Gravity.CENTER);
+        code.setLetterSpacing(0.3f);
+        int p = Ui.dp(this, 20);
+        code.setPadding(p, p, p, p);
+        pinShowDialog = new android.app.AlertDialog.Builder(this)
+                .setTitle("Share code")
+                .setMessage("Read this code to the sender so they know it is you:")
+                .setView(code)
+                .setPositiveButton("Done", null)
+                .create();
+        pinShowDialog.show();
+    }
+
+    private void dismissReceiverPin() {
+        if (pinShowDialog != null) {
+            try {
+                pinShowDialog.dismiss();
+            } catch (Exception ignored) {
+            }
+            pinShowDialog = null;
         }
     }
 
