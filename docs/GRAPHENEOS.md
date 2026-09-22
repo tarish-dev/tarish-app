@@ -101,8 +101,11 @@ Both ship in the app repository under `etc/`.
 
 **Quick Share needs nothing here. Skip this step if AirDrop is not wanted.**
 
-`tarishsharingd` requires `libmosey_daemon_ffi.so` and does not care where it comes from: it
-tries the soname, then the usual paths, then `TARISH_MOSEY_LIB`. On a Pixel the library and
+`tarishd` needs a library providing the `libmosey_daemon_ffi.so` ABI (the soname + five FFI
+symbols). **In production that library is our own `tlink` shim, not Google's `libmosey`** —
+the integrator pins tlink over the libmosey path (`gos-tlink.sh`); Google's `libmosey` also
+satisfies the ABI and is the fallback/reference. It does not care where the file comes from: it
+tries the soname, then the usual paths, then `TARISH_MOSEY_LIB`. On a Pixel `libmosey` and
 `wonder.ko` are already in the stock vendor image, so a build with **zero Google packages**
 still has both — using them adds nothing to the device that was not already there.
 
@@ -298,6 +301,10 @@ peer, showing a transfer prompt, and BLE advertising all need an app, because a 
 daemon cannot reach framework Bluetooth or draw anything. See
 [tarish-app](https://github.com/tarish-dev/tarish-app).
 
-Tarish also does not replace `wonder.ko` or `libmosey_daemon_ffi.so` for AirDrop — those are
-Google's, already in the Pixel vendor image, and Tarish drives them rather than
-reimplementing them. Quick Share has no such dependency.
+For AirDrop, Tarish **replaces Google's `libmosey` with its own open AWDL stack, `tlink`**
+(see [tarish-link](https://github.com/tarish-dev/tarish-link)), which provides the same
+`libmosey_daemon_ffi.so` ABI — so in production the AWDL userspace is ours, not Google's. The
+one layer Tarish does **not** reimplement is `wonder.ko`, the silicon-tied kernel MAC module
+(Google's, in the Pixel vendor image); Tarish drives it. Quick Share has no AWDL dependency.
+Authoritative overview:
+[CURRENT-ARCHITECTURE](https://github.com/tarish-dev/tarish-daemon/blob/main/docs/CURRENT-ARCHITECTURE.md).

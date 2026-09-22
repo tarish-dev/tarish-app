@@ -92,9 +92,11 @@ debugged at the endpoints instead.
 
 ## The goal
 
-Hardware independence. Today Tarish depends on `libmosey`, a Google blob that happens to
-ride in the Pixel vendor image — pinned in `vendor/mosey/` precisely because a vendor
-bump could change the ABI underneath us with no warning. A protocol we actually
+Hardware independence. Tarish now ships **`tlink`, its own open AWDL implementation**, in
+place of `libmosey` in production (this rig is what built it); Google's `libmosey` remains
+only as the ABI reference/fallback, pinned in `vendor/mosey/` because a vendor bump could
+change that ABI under us with no warning. `tlink` still rides on Google's `wonder.ko` kernel
+MAC module, which is the remaining hardware dependency this work aims to remove. A protocol we actually
 understand can be implemented against OWL, against a monitor-mode adapter, or against
 whatever comes next, on hardware Google has no say in.
 

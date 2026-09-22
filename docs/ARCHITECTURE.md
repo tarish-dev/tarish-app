@@ -48,9 +48,9 @@ closed per call. Every socket in its fd table, plus `/dev/tun` and the epoll and
 eventfd, belongs to the vendor library — which parses hostile over-the-air AWDL
 frames inside a process holding `CAP_NET_ADMIN` and `CAP_NET_RAW`.
 
-That is structural rather than a regression. `libmosey` needs those capabilities
-to drive `wonder.ko`, so it cannot be moved to the unprivileged half without
-giving up AWDL entirely. What the split still buys is real — a cpio or TLS bug is
+That is structural rather than a regression. The AWDL library — our `tlink` in production,
+Google's `libmosey` historically — needs those capabilities to drive `wonder.ko`, so it
+cannot be moved to the unprivileged half without giving up AWDL entirely. What the split still buys is real — a cpio or TLS bug is
 not a privileged compromise — but "the privileged half is 500 auditable lines" is
 true and incomplete: those lines are auditable in an hour and the blob sharing
 their address space is not auditable at all. It is confined to `tarishd`'s SELinux
