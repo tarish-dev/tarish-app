@@ -65,7 +65,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private static final int VISIBLE_SECONDS = 600;
     private static final long POLL_MS = 1500;
     /** Renew well inside the daemon's expiry, so there is no window where it has lapsed. */
-    private static final long RENEW_AFTER_MS = (VISIBLE_SECONDS - 120) * 1000L;
+    // (auto-renew removed — the visible window now expires and is re-enabled deliberately)
     private static final int REQ_PICK = 1;
 
     // Outcomes from ITarishCallback.onTransferFinished.
@@ -128,6 +128,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * the label was a fresh view that nobody had told.
      */
     private boolean discoverable;
+    /** The beacon subtitle that shows the visible-for countdown; updated each poll tick. */
+    private TextView visibleCountdownView;
     /**
      * What the peer list currently shows.
      *
@@ -231,14 +233,19 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             }
             if (sendMode) {
                 refreshPeers();
-            } else if (discoverable
-                    && System.currentTimeMillis() - visibleSince > RENEW_AFTER_MS) {
-                // The daemon expires visibility on its own timer and has no way to tell
-                // us. Renewing while this screen is up means the state it shows stays
-                // true -- otherwise the phone goes quiet after ten minutes while the
-                // screen still claims to be visible, which is a lie in the direction
-                // that matters.
-                setDiscoverable(true, "renew");
+            } else if (discoverable) {
+                // A visible ten-minute window that actually expires, rather than silently
+                // renewing forever. The daemon stops advertising on its own timer; when the
+                // window elapses we reflect that and offer re-enable (see buildIdentityStrip),
+                // so a person can see how long they are visible and re-arm deliberately.
+                long remainingMs = (long) VISIBLE_SECONDS * 1000L
+                        - (System.currentTimeMillis() - visibleSince);
+                if (remainingMs <= 0) {
+                    setDiscoverable(false, "visible window expired");
+                    render();
+                } else {
+                    updateVisibleCountdown(remainingMs);
+                }
             }
             main.postDelayed(this, POLL_MS);
         }
@@ -944,6 +951,11 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         slp.topMargin = Ui.dp(this, 3);
         sub.setLayoutParams(slp);
         wrap.addView(sub);
+        // The live "visible for m:ss" countdown. Held so the poll tick can update it in place
+        // without rebuilding the beacon (which would restart the pulse animation).
+        visibleCountdownView = sub;
+        updateVisibleCountdown((long) VISIBLE_SECONDS * 1000L
+                - (System.currentTimeMillis() - visibleSince));
 
         return wrap;
     }
@@ -1110,10 +1122,21 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             // SAY THE SCREEN IS BEING HELD AWAKE. Waiting to receive keeps the display on
             // (see keepScreenAwake), and a phone whose screen will not sleep with no
             // explanation reads as a fault. One clause turns it into a statement.
-            setIdentityState(
-                    discoverable ? "visible to everyone nearby — screen stays on"
-                                 : (sendMode ? "not visible while sending" : "not visible"),
-                    discoverable);
+            boolean canReceive = policy != null && PolicyStore.allowsReceive(policy.airdrop);
+            if (!discoverable && !sendMode && canReceive) {
+                // The ten-minute window has lapsed (or was never opened). Offer a deliberate
+                // re-enable rather than silently renewing: tap to be visible for another 10.
+                setIdentityState("not visible — tap to be visible for 10 minutes", false);
+                identity.setOnClickListener(v -> {
+                    setDiscoverable(true, "re-enable");
+                    render();
+                });
+            } else {
+                setIdentityState(
+                        discoverable ? "visible to everyone nearby — screen stays on"
+                                     : (sendMode ? "not visible while sending" : "not visible"),
+                        discoverable);
+            }
         }
         return identity;
     }
@@ -2412,6 +2435,16 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /** Update the beacon's "visible for m:ss" line in place. Safe if the view isn't built. */
+    private void updateVisibleCountdown(long remainingMs) {
+        if (visibleCountdownView == null) {
+            return;
+        }
+        long s = Math.max(0, remainingMs / 1000);
+        visibleCountdownView.setText(String.format(java.util.Locale.US,
+                "Visible to everyone · %d:%02d left", s / 60, s % 60));
     }
 
     private void setDiscoverable(boolean visible, String why) {
