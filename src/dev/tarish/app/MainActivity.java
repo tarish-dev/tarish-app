@@ -315,19 +315,16 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
 
         @Override
         public void onTransferPinRequired(long id) {
-            main.post(() -> {
-                if (id != activeTransfer) {
-                    return;
-                }
-                askForPin(id);
-            });
+            // PIN VERIFICATION INTENTIONALLY DISABLED — see docs/PIN-DISABLED.md. The daemon no
+            // longer raises this; the sender no longer prompts for a PIN. No-op defensively.
+            //   main.post(() -> { if (id == activeTransfer) askForPin(id); });
         }
 
         @Override
         public void onTransferPinDisplay(long id, String pin) {
-            // RECEIVER side: hold the code until the person accepts. Showing it now would put
-            // it over the Accept/Decline card, before any consent. answerOffer() shows it.
-            main.post(() -> pendingReceiverPin = pin);
+            // PIN VERIFICATION INTENTIONALLY DISABLED — see docs/PIN-DISABLED.md. The daemon no
+            // longer derives or sends a PIN; the receiver shows none. No-op defensively.
+            //   main.post(() -> pendingReceiverPin = pin);
         }
 
         /**
@@ -1052,14 +1049,11 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 what = what.isEmpty() ? Ui.size(offerBytes) : what + "  ·  " + Ui.size(offerBytes);
             }
             beginTransfer(offerFrom, what, offerProtocol, false, offerNames);
-            // NOW show the code, if the sender's transfer carries one -- after consent, and
-            // at the moment the sender begins asking the person to type it.
-            if (pendingReceiverPin != null) {
-                showReceiverPin(pendingReceiverPin);
-            }
+            // PIN VERIFICATION INTENTIONALLY DISABLED — see docs/PIN-DISABLED.md. No code is
+            // shown on accept any more (pendingReceiverPin is never set):
+            //   if (pendingReceiverPin != null) { showReceiverPin(pendingReceiverPin); }
         } else {
-            // Declined: leave the OFFER stage so the screen returns to the beacon. Drop the
-            // code with it -- there is no sender left to read it to.
+            // Declined: leave the OFFER stage so the screen returns to the beacon.
             pendingReceiverPin = null;
             stage = Stage.IDLE;
             render();
