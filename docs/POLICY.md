@@ -237,7 +237,13 @@ you cannot receive spontaneously. A sender finds nothing unless you have already
 a window. That is correct — an always-available receive path is precisely the standing
 hole the setting exists to prevent — but it is a visible behaviour change.
 
-Authentication is `BiometricPrompt` with device-credential fallback, so face,
-fingerprint and PIN all work and the platform decides which is acceptable. The app
+> **Not implemented yet — planned.** Per-transfer authentication under lockdown is a design,
+> not shipped code: there is no `BiometricPrompt` in the app today. Today, lockdown makes
+> Tarish silent (no advertising/browsing/accepting) until a human opens a discoverable window;
+> it does **not** yet require a biometric or device-PIN per transfer. See `docs/TODO.md`
+> ("lockdown"). The intended design below stands as the plan.
+
+The intended authentication is `BiometricPrompt` with device-credential fallback, so face,
+fingerprint and PIN would all work and the platform decides which is acceptable. The app
 prompts, because the daemon has no UI; the daemon enforces, because the app can be
 bypassed.
