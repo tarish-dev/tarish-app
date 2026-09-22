@@ -40,7 +40,7 @@ final class PolicyStore {
     private static final String K_AIRDROP = "airdrop";
     private static final String K_QUICKSHARE = "quickshare";
     private static final String K_CONFIRM = "require_confirmation";
-    private static final String K_PIN = "require_pin";
+    // require_pin removed — PIN verification is disabled (see tarish-daemon/docs/PIN-DISABLED.md).
     private static final String K_NAME = "device_name";
 
     private final Context context;
@@ -93,13 +93,9 @@ final class PolicyStore {
                 ? managed.getBoolean(K_CONFIRM, true)
                 : p.getBoolean(K_CONFIRM, true);
 
-        // Defaults on. The PIN costs a step on every send, and someone handing a file to
-        // a device in front of them may not want it -- but it is the only check that the
-        // peer we negotiated with is the one in the room, so it is opted OUT of.
-        out.requirePinManaged = managed.containsKey(K_PIN);
-        out.requirePin = out.requirePinManaged
-                ? managed.getBoolean(K_PIN, true)
-                : p.getBoolean(K_PIN, true);
+        // require_pin removed from settings — PIN verification is disabled (see
+        // tarish-daemon/docs/PIN-DISABLED.md). The AIDL field stays for compatibility and is
+        // left at its default (false); the daemon ignores it.
 
         // An empty managed name is "no opinion", not "call the device nothing". An admin
         // who wants to clear a name sets it to the value they want it to have.
@@ -150,9 +146,7 @@ final class PolicyStore {
         prefs().edit().putBoolean(K_CONFIRM, require).apply();
     }
 
-    void setUserRequirePin(boolean require) {
-        prefs().edit().putBoolean(K_PIN, require).apply();
-    }
+    // setUserRequirePin removed — PIN verification is disabled (PIN-DISABLED.md).
 
     void setUserDeviceName(String name) {
         prefs().edit().putString(K_NAME, name == null ? "" : name.trim()).apply();
@@ -171,7 +165,7 @@ final class PolicyStore {
         return p.airdropManaged
                 || p.quickshareManaged
                 || p.requireConfirmationManaged
-                || p.requirePinManaged
+                // requirePinManaged omitted — PIN verification disabled (PIN-DISABLED.md)
                 || p.deviceNameManaged;
     }
 

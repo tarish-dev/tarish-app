@@ -214,14 +214,6 @@ public final class SettingsActivity extends Activity {
         space(16);
         content.addView(Ui.sectionLabel(this, "QUICK SHARE  ·  ANDROID AND WINDOWS"));
         protocolCard(false);
-        // PIN VERIFICATION INTENTIONALLY DISABLED — see docs/PIN-DISABLED.md. The Require PIN
-        // caption is hidden with its toggle (in protocolCard):
-        // caption(policy.requirePinManaged
-        //         ? "Require PIN is set by your organization."
-        //         : "Require PIN to send: the receiver shows a code and tells it to you; you"
-        //                 + " enter it before anything is sent, so you know you're sending to"
-        //                 + " the right person. Off: files send as soon as the other device"
-        //                 + " accepts.");
 
         // ---- confirmation ------------------------------------------------------
         space(16);
@@ -423,22 +415,9 @@ public final class SettingsActivity extends Activity {
             int updated = PolicyStore.withSend(currentMode(airdrop), on);
             apply(airdrop, key, updated);
         }));
-        // PIN VERIFICATION INTENTIONALLY DISABLED — see docs/PIN-DISABLED.md (in the daemon
-        // repo). The "Require PIN to send" toggle is hidden: a typed PIN only ever applied to
-        // Quick Share, never AirDrop, and cannot work against a stock Quick Share peer, so it
-        // was inconsistent for no security gain. The daemon ignores requirePin now. Kept
-        // commented so it can be restored if a real purpose appears.
-        // if (!airdrop) {
-        //     card.addView(Ui.rule(this));
-        //     card.addView(toggle("Require PIN to send",
-        //             policy.requirePin,
-        //             !policy.requirePinManaged,
-        //             on -> {
-        //                 store.setUserRequirePin(on);
-        //                 policy.requirePin = on;
-        //                 push();
-        //             }));
-        // }
+        // "Require PIN to send" removed — PIN verification is disabled (see PIN-DISABLED.md in
+        // the daemon repo). It only ever applied to Quick Share, never AirDrop, and could not
+        // work against a stock Quick Share peer, so it was inconsistent for no security gain.
         content.addView(card);
 
         if (managed) {
