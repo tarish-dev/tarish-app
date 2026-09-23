@@ -1053,29 +1053,34 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * transfer outcomes) and all of them should keep working without knowing this changed.
      */
     private View buildReceiveHero() {
-        identity = Ui.cardBox(this);
+        // NO CARD. This is the screen's centrepiece, not a row in a list, and a box around it
+        // makes it read as one more widget rather than as the thing you came here for. An
+        // earlier version used Ui.cardBox() to advertise "this is tappable" -- the right way
+        // to do that is a big target and a line saying what tapping does, which the states
+        // below provide. The previous beacon had no card either, and looked better for it.
+        identity = new LinearLayout(this);
         identity.setOrientation(LinearLayout.VERTICAL);
         identity.setGravity(Gravity.CENTER_HORIZONTAL);
-        int pad = Ui.dp(this, 22);
-        identity.setPadding(pad, pad, pad, pad);
+        int pad = Ui.dp(this, 34);
+        identity.setPadding(0, pad, 0, pad);
 
         // The ring pulses only while genuinely discoverable. A hero that animates when
         // nothing is listening is the same class of lie as the label that used to say "not
         // visible" while Quick Share was advertising.
-        int ringBox = Ui.dp(this, 120);
+        int ringBox = Ui.dp(this, 140);
         android.widget.FrameLayout ring = new android.widget.FrameLayout(this);
         liveDot = new PulseView(this);
         ring.addView(liveDot, new android.widget.FrameLayout.LayoutParams(ringBox, ringBox));
         View puck = Ui.glyphInCircle(this, Glyph.Kind.DOWNLOAD,
-                discoverable ? Ui.live(this) : Ui.textFaint(this), Ui.surfaceSunk(this), 56);
-        int puckBox = Ui.dp(this, 56);
+                discoverable ? Ui.live(this) : Ui.textFaint(this), Ui.surfaceSunk(this), 64);
+        int puckBox = Ui.dp(this, 64);
         android.widget.FrameLayout.LayoutParams pp =
                 new android.widget.FrameLayout.LayoutParams(puckBox, puckBox);
         pp.gravity = Gravity.CENTER;
         ring.addView(puck, pp);
         identity.addView(ring, new LinearLayout.LayoutParams(ringBox, ringBox));
 
-        deviceLine = Ui.text(this, "", 17, Ui.textColor(this), true);
+        deviceLine = Ui.text(this, "", 19, Ui.textColor(this), true);
         deviceLine.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -1083,7 +1088,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         deviceLine.setLayoutParams(tl);
         identity.addView(deviceLine);
 
-        stateLine = Ui.text(this, "", 13, Ui.textMuted(this), false);
+        stateLine = Ui.text(this, "", 14, Ui.textMuted(this), false);
         stateLine.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
