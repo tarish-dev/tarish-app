@@ -130,6 +130,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private boolean discoverable;
     /** The beacon subtitle that shows the visible-for countdown; updated each poll tick. */
     private TextView visibleCountdownView;
+    /** Last seen link state, so the poll tick can redraw when it CHANGES. */
+    private boolean lastTransportUp;
     /**
      * What the peer list currently shows.
      *
@@ -230,6 +232,22 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 }
                 main.postDelayed(this, POLL_MS);
                 return;
+            }
+            // THE LINK COMING UP MUST REDRAW THE SCREEN.
+            //
+            // tarishd brings AWDL up a few seconds after boot, and the receive screen is
+            // usually drawn BEFORE that. Nothing re-rendered when the link arrived, so the
+            // hero sat on "Cannot receive" until the person happened to switch tabs -- on
+            // every boot, on a device that was in fact ready. Seen on 2026092323: the daemon
+            // logging "AirDrop server up" while the screen still said it could not receive.
+            //
+            // Cheap: getStatus() is one binder call already made by transportUp(), and this
+            // only re-renders on a CHANGE, not every tick.
+            boolean up = transportUp();
+            if (up != lastTransportUp) {
+                lastTransportUp = up;
+                Log.i(TAG, "transport " + (up ? "up" : "down") + " — redrawing");
+                render();
             }
             if (sendMode) {
                 refreshPeers();
@@ -2457,9 +2475,25 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
     }
 
-    /** Update the beacon's "visible for m:ss" line in place. Safe if the view isn't built. */
+    /** Update the hero's "<name> · m:ss left" line in place. Safe if the view isn't built. */
     private void updateVisibleCountdown(long remainingMs) {
         if (visibleCountdownView == null) {
+            return;
+        }
+        // ONLY WHILE ACTUALLY DISCOVERABLE.
+        //
+        // The countdown shares the hero's subtitle with every other state, and the poll tick
+        // fires regardless of which one is showing. Without this guard it overwrote them and
+        // the screen contradicted itself -- seen on 2026092323, immediately after a flash
+        // while the AWDL radio was still coming up:
+        //
+        //     Cannot receive
+        //     Pixel 10 Pro · 9:52 left
+        //
+        // A countdown under "cannot receive" is the same class of lie as a hero that pulses
+        // when nothing is listening. The state branches own this line; the tick only refines
+        // it when their answer was "ready".
+        if (!discoverable) {
             return;
         }
         long s = Math.max(0, remainingMs / 1000);
