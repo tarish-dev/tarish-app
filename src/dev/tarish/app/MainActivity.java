@@ -133,6 +133,11 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     /** Last seen link state, so the poll tick can redraw when it CHANGES. */
     private boolean lastTransportUp;
     /**
+     * Did the hero's state branch say "ready"? The countdown shares the subtitle with every
+     * other state, so only the branch that OWNS the line may let the tick refine it.
+     */
+    private boolean heroReady;
+    /**
      * What the peer list currently shows.
      *
      * The list used to be torn down and rebuilt on every poll, twice a second. A tap
@@ -1107,6 +1112,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // it off, say that; the radio is not the reason and mentioning it invites them to
         // go looking for a fault that is not there.
         if (!transportUp() && allowed(ITarishService.PROTOCOL_AIRDROP)) {
+            heroReady = false;
             setHeroTitle("Cannot receive");
             setIdentityState("AirDrop radio unavailable \u2014 see Send screen", false);
         } else {
@@ -1128,6 +1134,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 // The ten-minute window has lapsed (or was never opened). Offer a deliberate
                 // re-enable rather than silently renewing: tap to be ready for another 10.
                 // The WHOLE CARD is the target now, not a line of grey text inside it.
+                heroReady = false;
                 setHeroTitle("Not receiving");
                 setIdentityState("Tap to receive for 10 minutes", false);
                 identity.setClickable(true);
@@ -1150,15 +1157,18 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 //
                 // The operator reported it as "I cannot change from not visible, clicking
                 // not doing anything" -- while a transfer was in fact arriving.
+                heroReady = false;
                 setHeroTitle("Ready for Quick Share");
                 setIdentityState("AirDrop is off — turn it on in Settings", false);
             } else if (discoverable) {
+                heroReady = true;
                 setHeroTitle("Ready to receive");
                 // The device name belongs HERE: "what will they see?" is a question a person
                 // actually has, and this is the moment they have it. The countdown overwrites
                 // this line on the next tick -- see updateVisibleCountdown.
                 setIdentityState(deviceName(), true);
             } else {
+                heroReady = false;
                 setHeroTitle("Not receiving");
                 setIdentityState(sendMode ? "Not visible while sending" : "Not visible", false);
             }
@@ -2498,7 +2508,13 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // A countdown under "cannot receive" is the same class of lie as a hero that pulses
         // when nothing is listening. The state branches own this line; the tick only refines
         // it when their answer was "ready".
-        if (!discoverable) {
+        //
+        // GUARDED ON heroReady, NOT on `discoverable`. A first attempt used `discoverable`
+        // and still showed the contradiction, because the two are not the same question:
+        // for ~10s after launch the app is discoverable while the AWDL link is still coming
+        // up, so the title said "Cannot receive" and the countdown wrote underneath it
+        // anyway. Only the branch that rendered "Ready to receive" may hand this line over.
+        if (!heroReady) {
             return;
         }
         long s = Math.max(0, remainingMs / 1000);
