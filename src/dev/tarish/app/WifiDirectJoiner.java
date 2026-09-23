@@ -104,7 +104,7 @@ final class WifiDirectJoiner {
      * measured case; two seconds is generous without eating the connect budget, which the
      * peer is holding open on its side.
      */
-    private static final int BIND_WAIT_MS = 2_000;
+    private static final int BIND_WAIT_MS = 8_000;
 
     /**
      * Teardown for the group each transfer joined, so the radio is released when the
@@ -346,8 +346,17 @@ final class WifiDirectJoiner {
                 }
                 Thread.sleep(100);
             } while (System.currentTimeMillis() < deadline);
-            Log.i(TAG, "no Wi-Fi Direct network appeared within " + BIND_WAIT_MS
-                    + "ms; continuing unbound");
+            // SAY WHAT WAS THERE INSTEAD. "No p2p network" has two very different causes --
+            // it has not appeared YET, or Android never registers one for a P2P client at
+            // all -- and they need different fixes. Listing what IS visible distinguishes
+            // them in one line rather than another build cycle.
+            StringBuilder seen = new StringBuilder();
+            for (Network n : cm.getAllNetworks()) {
+                LinkProperties lp = cm.getLinkProperties(n);
+                seen.append(lp == null ? "?" : String.valueOf(lp.getInterfaceName())).append(' ');
+            }
+            Log.w(TAG, "no Wi-Fi Direct network appeared within " + BIND_WAIT_MS
+                    + "ms; continuing unbound. networks visible: [" + seen.toString().trim() + "]");
         } catch (Throwable t) {
             // Deliberately Throwable: this is an optimisation on the path to a transfer, and
             // nothing here is worth failing the transfer over.
