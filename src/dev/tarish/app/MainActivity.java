@@ -2625,15 +2625,15 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
 
     /**
      * Stage arbitrary text as a small .txt in the app cache, returning a URI the send path
-     * can open. Named from the first line so the receiver sees something meaningful rather
-     * than "note.txt" every time. UTF-8, no BOM -- an outbound file should be clean text; a
-     * BOM is added only on the receive side, where Android editors need the hint.
+     * can open. UTF-8, no BOM -- an outbound file should be clean text; a BOM is added only
+     * on the receive side, where Android editors need the hint.
      */
     private Uri writeNote(String text) {
         try {
             java.io.File dir = new java.io.File(getCacheDir(), "notes");
             dir.mkdirs();
-            java.io.File f = new java.io.File(dir, noteFileName(text));
+            pruneNotes(dir);
+            java.io.File f = new java.io.File(dir, noteFileName());
             try (java.io.OutputStream os = new java.io.FileOutputStream(f)) {
                 os.write(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             }
@@ -2644,20 +2644,56 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
     }
 
-    /** A filename from the text's first line: trimmed, sanitised, capped, always ".txt". */
-    private String noteFileName(String text) {
-        String line = text.trim();
-        int nl = line.indexOf('\n');
-        if (nl >= 0) {
-            line = line.substring(0, nl).trim();
+    /**
+     * "Note-a7k2p.txt". Fixed prefix, five random characters, and NOTHING from the text.
+     *
+     * This used to name the file after the note's first line, sanitised and capped, so the
+     * receiver saw something meaningful rather than "note.txt" every time. That reads as a
+     * nicety and is actually a disclosure: a filename is shown on the RECEIVING device --
+     * in the AirDrop prompt and in the Quick Share notification -- BEFORE anyone there has
+     * accepted anything. So the first line of a note reached a screen we do not control,
+     * belonging to a peer who may have declined, or who may not be the person we meant.
+     * Point a phone at the wrong device and the subject line has already left.
+     *
+     * The sanitiser was not the weak part, and replacing it with a stricter one would have
+     * missed the point. It did block traversal and control characters -- everything outside
+     * [letter digit space - _] became a space, so no dot, slash or bidi override survived --
+     * but `Character.isLetterOrDigit` is Unicode-aware by design, so the whole of any script
+     * passed through it intact. It was doing its job. The content simply does not belong in
+     * the name.
+     *
+     * Random rather than a counter or a timestamp: a counter says how many notes have been
+     * sent and a timestamp says when, and neither is anyone else's business either.
+     */
+    private String noteFileName() {
+        final String alphabet = "abcdefghijkmnopqrstuvwxyz23456789";   // no l/1, no o/0
+        java.security.SecureRandom r = new java.security.SecureRandom();
+        StringBuilder b = new StringBuilder("Note-");
+        for (int i = 0; i < 5; i++) {
+            b.append(alphabet.charAt(r.nextInt(alphabet.length())));
         }
-        StringBuilder b = new StringBuilder();
-        for (int i = 0; i < line.length() && b.length() < 32; i++) {
-            char c = line.charAt(i);
-            b.append(Character.isLetterOrDigit(c) || c == ' ' || c == '-' || c == '_' ? c : ' ');
+        return b.append(".txt").toString();
+    }
+
+    /**
+     * Drop staged notes older than an hour.
+     *
+     * Content-derived names used to collide and overwrite, which kept this directory small
+     * by accident. Random names do not, so the sweep has to be deliberate. An hour is far
+     * longer than any transfer, so this never removes a file being read; it is cache
+     * hygiene, not part of the transfer's lifecycle.
+     */
+    private void pruneNotes(java.io.File dir) {
+        java.io.File[] old = dir.listFiles();
+        if (old == null) {
+            return;
         }
-        String base = b.toString().trim();
-        return (base.isEmpty() ? "Note" : base) + ".txt";
+        long cutoff = System.currentTimeMillis() - 3600_000L;
+        for (java.io.File f : old) {
+            if (f.isFile() && f.lastModified() < cutoff) {
+                f.delete();
+            }
+        }
     }
 
     /** Type or paste text and stage it as a note; the send screen then lists peers for it. */
@@ -2665,7 +2701,19 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         EditText in = new EditText(this);
         in.setHint("Type or paste text to send as a note");
         in.setGravity(Gravity.TOP | Gravity.START);
+        // MULTI_LINE is what makes Enter insert a newline. setMinLines() alone only made the
+        // box four lines TALL: an EditText built in code defaults to a single-line input type,
+        // so the Enter key ran an IME action and the field stayed one paragraph however big it
+        // looked. Pasting multi-line text worked, typing it did not.
+        in.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        in.setSingleLine(false);
         in.setMinLines(4);
+        // Grow to ten lines, then scroll inside the dialog rather than pushing the buttons
+        // off the bottom of the screen.
+        in.setMaxLines(10);
+        in.setVerticalScrollBarEnabled(true);
         in.setTextColor(Ui.textColor(this));
         in.setHintTextColor(Ui.textFaint(this));
         // Prefill from the clipboard -- "copy from any app and send it" is the whole point.
