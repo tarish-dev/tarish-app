@@ -7,6 +7,7 @@ import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.LinkProperties;
 import android.net.Network;
+import android.net.NetworkRequest;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pInfo;
@@ -98,13 +99,6 @@ final class WifiDirectJoiner {
      */
     private static final String DIRECT_PREFIX = "DIRECT-";
 
-    /**
-     * How long to wait for the Wi-Fi Direct Network to be REGISTERED before connecting
-     * unbound. The interface appeared ~300ms after the group-formed broadcast in the
-     * measured case; two seconds is generous without eating the connect budget, which the
-     * peer is holding open on its side.
-     */
-    private static final int BIND_WAIT_MS = 8_000;
 
     /**
      * Teardown for the group each transfer joined, so the radio is released when the
@@ -314,54 +308,127 @@ final class WifiDirectJoiner {
      *   <li>{@code bindSocket} throwing, e.g. the network going away mid-call</li>
      * </ul>
      */
-    private static void bindToP2p(Context ctx, FileDescriptor fd) {
+    /**
+     * Wait for the Wi-Fi Direct NETWORK, then bind the socket to it.
+     *
+     * <h2>Why a callback and not a poll</h2>
+     *
+     * There are three milestones here and they are not the same event:
+     *
+     * <ol>
+     *   <li>{@code WIFI_P2P_CONNECTION_CHANGED} with {@code groupFormed} — WifiP2pService
+     *       says the group exists. This is what {@code watcher.await()} returns on.</li>
+     *   <li>the kernel interface {@code p2p-wlan0-N} appears</li>
+     *   <li>ConnectivityService REGISTERS a Network for it, with a netId and a routing
+     *       table — which is the only one that lets a socket be bound</li>
+     * </ol>
+     *
+     * The joiner waited for (1) and then connected, so it raced (3). Measured twice under a
+     * kill-switch: the interface arrived 300ms and then 348ms after we had already given up.
+     *
+     * Polling for it was the wrong answer — it turns a missing event into a guess about how
+     * long to wait, and the right number does not exist. registerNetworkCallback IS the
+     * event: the framework wakes us when the network is actually there.
+     *
+     * <p>{@code clearCapabilities()} matters. The default NetworkRequest demands
+     * NET_CAPABILITY_INTERNET and a Wi-Fi Direct group has no internet, so a default request
+     * never matches it and the callback would never fire.
+     *
+     * <p>{@code onLinkPropertiesChanged} rather than only {@code onAvailable}: a network can
+     * become available before its LinkProperties carry an interface name, and the name is
+     * how a P2P network is recognised — there is no public TRANSPORT_WIFI_P2P to match on.
+     *
+     * <p>The timeout is a backstop against hanging forever, not the mechanism: the peer is
+     * holding a connection open on its side and will not wait indefinitely.
+     */
+    private static void bindToP2p(Context ctx, FileDescriptor fd, long budgetMs) {
+        ConnectivityManager cm = null;
+        ConnectivityManager.NetworkCallback cb = null;
         try {
-            ConnectivityManager cm =
-                    (ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+            cm = (ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
             if (cm == null) {
                 return;
             }
-            // WAIT FOR IT. "Group formed" is not "interface up" is not "Network registered",
-            // and we were acting on the first of the three. watcher.await() returns on
-            // WIFI_P2P_CONNECTION_CHANGED with groupFormed, which fires BEFORE the kernel
-            // interface exists. Measured under a kill-switch:
-            //
-            //   21:28:01.801  no Wi-Fi Direct network to bind to; continuing unbound
-            //   21:28:01.806  connect failed: EACCES
-            //   21:28:02.113  WifiNative: interfaceLinkStateChanged: p2p-wlan0-2  <- 300ms later
-            //
-            // The bind found nothing, the socket stayed unbound, and the connect was then
-            // refused by the lockdown rule. WITHOUT a kill-switch the same race is invisible,
-            // because an unbound socket still routes -- which is why it went unnoticed.
-            long deadline = System.currentTimeMillis() + BIND_WAIT_MS;
-            do {
-                for (Network n : cm.getAllNetworks()) {
-                    LinkProperties lp = cm.getLinkProperties(n);
-                    String iface = lp == null ? null : lp.getInterfaceName();
-                    if (iface != null && iface.startsWith("p2p-")) {
-                        n.bindSocket(fd);
-                        Log.i(TAG, "bound the upgrade socket to " + iface);
-                        return;
-                    }
-                }
-                Thread.sleep(100);
-            } while (System.currentTimeMillis() < deadline);
-            // SAY WHAT WAS THERE INSTEAD. "No p2p network" has two very different causes --
-            // it has not appeared YET, or Android never registers one for a P2P client at
-            // all -- and they need different fixes. Listing what IS visible distinguishes
-            // them in one line rather than another build cycle.
-            StringBuilder seen = new StringBuilder();
+            final java.util.concurrent.CountDownLatch found =
+                    new java.util.concurrent.CountDownLatch(1);
+            final java.util.concurrent.atomic.AtomicReference<Network> net =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+
+            // Already there? Then do not wait for an event that has already happened.
             for (Network n : cm.getAllNetworks()) {
                 LinkProperties lp = cm.getLinkProperties(n);
+                if (isP2p(lp)) {
+                    net.set(n);
+                    found.countDown();
+                    break;
+                }
+            }
+
+            if (net.get() == null) {
+                cb = new ConnectivityManager.NetworkCallback() {
+                    @Override public void onAvailable(Network n) {
+                        check(n);
+                    }
+                    @Override public void onLinkPropertiesChanged(Network n, LinkProperties lp) {
+                        if (isP2p(lp)) {
+                            net.compareAndSet(null, n);
+                            found.countDown();
+                        }
+                    }
+                    private void check(Network n) {
+                        // onAvailable can arrive before LinkProperties has a name; ask.
+                        ConnectivityManager c =
+                                (ConnectivityManager) ctx.getSystemService(
+                                        Context.CONNECTIVITY_SERVICE);
+                        if (c != null && isP2p(c.getLinkProperties(n))) {
+                            net.compareAndSet(null, n);
+                            found.countDown();
+                        }
+                    }
+                };
+                cm.registerNetworkCallback(
+                        new NetworkRequest.Builder().clearCapabilities().build(), cb);
+                found.await(Math.max(0, budgetMs), java.util.concurrent.TimeUnit.MILLISECONDS);
+            }
+
+            Network n = net.get();
+            if (n != null) {
+                n.bindSocket(fd);
+                LinkProperties lp = cm.getLinkProperties(n);
+                Log.i(TAG, "bound the upgrade socket to "
+                        + (lp == null ? "the Wi-Fi Direct network" : lp.getInterfaceName()));
+                return;
+            }
+
+            // SAY WHAT WAS THERE INSTEAD. "No p2p network" has two very different causes --
+            // not registered yet, or Android never registering one for a P2P client at all --
+            // and they need different fixes.
+            StringBuilder seen = new StringBuilder();
+            for (Network x : cm.getAllNetworks()) {
+                LinkProperties lp = cm.getLinkProperties(x);
                 seen.append(lp == null ? "?" : String.valueOf(lp.getInterfaceName())).append(' ');
             }
-            Log.w(TAG, "no Wi-Fi Direct network appeared within " + BIND_WAIT_MS
-                    + "ms; continuing unbound. networks visible: [" + seen.toString().trim() + "]");
+            Log.w(TAG, "no Wi-Fi Direct network arrived; continuing unbound. visible: ["
+                    + seen.toString().trim() + "]");
         } catch (Throwable t) {
-            // Deliberately Throwable: this is an optimisation on the path to a transfer, and
-            // nothing here is worth failing the transfer over.
+            // Deliberately Throwable, and deliberately non-fatal: every failure path here
+            // leaves the socket unbound, which is how this worked before the binding existed.
             Log.w(TAG, "could not bind the upgrade socket to the P2P network", t);
+        } finally {
+            if (cm != null && cb != null) {
+                try {
+                    cm.unregisterNetworkCallback(cb);
+                } catch (Throwable ignored) {
+                    // Already gone, or never registered.
+                }
+            }
         }
+    }
+
+    /** A Wi-Fi Direct group's interface, recognised by name: there is no public transport. */
+    private static boolean isP2p(LinkProperties lp) {
+        String iface = lp == null ? null : lp.getInterfaceName();
+        return iface != null && iface.startsWith("p2p-");
     }
 
     /**
@@ -397,7 +464,7 @@ final class WifiDirectJoiner {
             //
             // Best effort on purpose: if the network cannot be found or the bind fails we
             // carry on unbound, which is exactly what this did before. It can only help.
-            bindToP2p(ctx, fd);
+            bindToP2p(ctx, fd, budgetMs);
             int flags = Os.fcntlInt(fd, OsConstants.F_GETFL, 0);
             Os.fcntlInt(fd, OsConstants.F_SETFL, flags | OsConstants.O_NONBLOCK);
 
