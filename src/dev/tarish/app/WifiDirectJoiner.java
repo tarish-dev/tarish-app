@@ -99,6 +99,14 @@ final class WifiDirectJoiner {
     private static final String DIRECT_PREFIX = "DIRECT-";
 
     /**
+     * How long to wait for the Wi-Fi Direct Network to be REGISTERED before connecting
+     * unbound. The interface appeared ~300ms after the group-formed broadcast in the
+     * measured case; two seconds is generous without eating the connect budget, which the
+     * peer is holding open on its side.
+     */
+    private static final int BIND_WAIT_MS = 2_000;
+
+    /**
      * Teardown for the group each transfer joined, so the radio is released when the
      * transfer ends rather than when the process does.
      *
@@ -313,16 +321,33 @@ final class WifiDirectJoiner {
             if (cm == null) {
                 return;
             }
-            for (Network n : cm.getAllNetworks()) {
-                LinkProperties lp = cm.getLinkProperties(n);
-                String iface = lp == null ? null : lp.getInterfaceName();
-                if (iface != null && iface.startsWith("p2p-")) {
-                    n.bindSocket(fd);
-                    Log.i(TAG, "bound the upgrade socket to " + iface);
-                    return;
+            // WAIT FOR IT. "Group formed" is not "interface up" is not "Network registered",
+            // and we were acting on the first of the three. watcher.await() returns on
+            // WIFI_P2P_CONNECTION_CHANGED with groupFormed, which fires BEFORE the kernel
+            // interface exists. Measured under a kill-switch:
+            //
+            //   21:28:01.801  no Wi-Fi Direct network to bind to; continuing unbound
+            //   21:28:01.806  connect failed: EACCES
+            //   21:28:02.113  WifiNative: interfaceLinkStateChanged: p2p-wlan0-2  <- 300ms later
+            //
+            // The bind found nothing, the socket stayed unbound, and the connect was then
+            // refused by the lockdown rule. WITHOUT a kill-switch the same race is invisible,
+            // because an unbound socket still routes -- which is why it went unnoticed.
+            long deadline = System.currentTimeMillis() + BIND_WAIT_MS;
+            do {
+                for (Network n : cm.getAllNetworks()) {
+                    LinkProperties lp = cm.getLinkProperties(n);
+                    String iface = lp == null ? null : lp.getInterfaceName();
+                    if (iface != null && iface.startsWith("p2p-")) {
+                        n.bindSocket(fd);
+                        Log.i(TAG, "bound the upgrade socket to " + iface);
+                        return;
+                    }
                 }
-            }
-            Log.i(TAG, "no Wi-Fi Direct network to bind to; continuing unbound");
+                Thread.sleep(100);
+            } while (System.currentTimeMillis() < deadline);
+            Log.i(TAG, "no Wi-Fi Direct network appeared within " + BIND_WAIT_MS
+                    + "ms; continuing unbound");
         } catch (Throwable t) {
             // Deliberately Throwable: this is an optimisation on the path to a transfer, and
             // nothing here is worth failing the transfer over.
