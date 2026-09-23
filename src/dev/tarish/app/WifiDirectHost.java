@@ -195,8 +195,28 @@ final class WifiDirectHost {
             java.net.InetAddress addr = java.net.InetAddress.getByName(g.goAddress);
             return java.net.NetworkInterface.getByInetAddress(addr) != null;
         } catch (Exception e) {
-            // Unparseable, or no interfaces to enumerate. Either way, not usable.
-            return false;
+            // FAIL SAFE: "I could not tell" must mean ALIVE, never dead.
+            //
+            // The two mistakes are not symmetrical. Treating a dead group as alive costs
+            // one transfer, which falls back to Bluetooth and still arrives. Treating a
+            // LIVE group as dead tears down a network a peer may already be on, and since
+            // the daemon re-asks every second it does so again and again.
+            //
+            // That is not hypothetical: this returned false here on 2026092319 because
+            // enumerating interfaces needs a netlink route socket the domain did not have,
+            // so every group was declared dead the instant it was created --
+            //
+            //   hosting DIRECT-Pp-Android_KEzL on 192.168.49.1 at 5745 MHz
+            //   cached group ... is gone — 192.168.49.1 is on no interface; recreating
+            //   released the Wi-Fi Direct group
+            //   hosting DIRECT-Pp-Android_KEzL ...          <- once a second, forever
+            //
+            // The policy grant is in tarish_app.te now, but an optimisation that can only
+            // ever help is worth more than one that is right when it works. Returning true
+            // makes this strictly additive: at worst it behaves exactly as the old
+            // unconditional reuse did.
+            Log.w(TAG, "could not check whether " + g.ssid + " is still up; assuming it is", e);
+            return true;
         }
     }
 
