@@ -71,37 +71,9 @@ final class WifiDirectHost {
         //
         // Measured exactly so. A group is a network, not a per-transfer resource, and
         // handing back the live one is both correct and what the second caller wanted.
-        // ...BUT ONLY IF IT IS STILL THERE.
-        //
-        // `current` is cleared in remove() and nowhere else, so a group that dies any other
-        // way -- the driver tearing the interface down, the adapter cycling, the radio slot
-        // being taken for AWDL -- leaves a corpse cached here forever. Every later receive
-        // then hands the daemon an address that exists on no interface, the daemon binds a
-        // listener and advertises goAddress:port, and the peer's connect fails INSTANTLY.
-        //
-        // Measured on blazer, an hour of receives all falling back to Bluetooth:
-        //
-        //   app:   already hosting DIRECT-Pp-Android_KEzL; reusing it   (x10, in 8ms)
-        //   ip:    Device "p2p-wlan0-0" does not exist
-        //   rule:  from all iif lo oif p2p-wlan0-0 [detached] ...
-        //   peer:  WifiDirect has successfully connected to DIRECT-Pp-Android_KEzL
-        //   peer:  MEDIUM_ERROR [WIFI_DIRECT][CONNECT][ESTABLISH_CONNECTION_FAILED]  <- 7ms
-        //
-        // The same group name came back for an hour across separate transfers, which is the
-        // tell: a live group is recreated per session, a cached one is not.
-        //
-        // The check is local and synchronous on purpose -- requestGroupInfo() is async and
-        // this runs on the binder thread answering the daemon. If the group owner address is
-        // still assigned to some interface on this device, the group is real; if it is not,
-        // the interface is gone and so is the group.
         if (current != null && current.ssid != null && !current.ssid.isEmpty()) {
-            if (stillUp(current)) {
-                Log.i(TAG, "already hosting " + current.ssid + "; reusing it");
-                return current;
-            }
-            Log.w(TAG, "cached group " + current.ssid + " is gone — " + current.goAddress
-                    + " is on no interface; recreating");
-            current = null;
+            Log.i(TAG, "already hosting " + current.ssid + "; reusing it");
+            return current;
         }
 
         // Any previous group first. A stale one makes createGroup fail with BUSY, and the
@@ -173,50 +145,6 @@ final class WifiDirectHost {
             Log.w(TAG, "could not host a group", e);
             cleanup(ctx);
             return none;
-        }
-    }
-
-    /**
-     * Is a cached group still real, or is it a handle to an interface that has gone?
-     *
-     * <p>Asks the only question that matters to the peer: is the address we would advertise
-     * as the group owner actually assigned to an interface on this device? getByInetAddress
-     * returns the interface holding that address, or null when nothing does -- which is
-     * precisely the state a torn-down P2P group leaves behind.
-     *
-     * <p>A literal address never goes to DNS, so this is a local lookup and safe to call on
-     * a binder thread.
-     */
-    private static boolean stillUp(TarishGroup g) {
-        if (g.goAddress == null || g.goAddress.isEmpty()) {
-            return false;
-        }
-        try {
-            java.net.InetAddress addr = java.net.InetAddress.getByName(g.goAddress);
-            return java.net.NetworkInterface.getByInetAddress(addr) != null;
-        } catch (Exception e) {
-            // FAIL SAFE: "I could not tell" must mean ALIVE, never dead.
-            //
-            // The two mistakes are not symmetrical. Treating a dead group as alive costs
-            // one transfer, which falls back to Bluetooth and still arrives. Treating a
-            // LIVE group as dead tears down a network a peer may already be on, and since
-            // the daemon re-asks every second it does so again and again.
-            //
-            // That is not hypothetical: this returned false here on 2026092319 because
-            // enumerating interfaces needs a netlink route socket the domain did not have,
-            // so every group was declared dead the instant it was created --
-            //
-            //   hosting DIRECT-Pp-Android_KEzL on 192.168.49.1 at 5745 MHz
-            //   cached group ... is gone — 192.168.49.1 is on no interface; recreating
-            //   released the Wi-Fi Direct group
-            //   hosting DIRECT-Pp-Android_KEzL ...          <- once a second, forever
-            //
-            // The policy grant is in tarish_app.te now, but an optimisation that can only
-            // ever help is worth more than one that is right when it works. Returning true
-            // makes this strictly additive: at worst it behaves exactly as the old
-            // unconditional reuse did.
-            Log.w(TAG, "could not check whether " + g.ssid + " is still up; assuming it is", e);
-            return true;
         }
     }
 
