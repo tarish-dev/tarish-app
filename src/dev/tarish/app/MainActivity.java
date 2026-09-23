@@ -891,73 +891,15 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             content.addView(buildOfferCard());
             return;
         }
-        if (discoverable) {
-            content.addView(buildWaitingHero());
-        } else {
-            // Not visible: say why (AirDrop off, radio down) instead of an empty screen.
-            content.addView(Ui.sectionLabel(this, "This device"));
-            content.addView(buildIdentityStrip());
-        }
-    }
-
-    /**
-     * The big "we are listening" beacon: a pulsing radar with a receive mark at its centre.
-     *
-     * This is the prominent version of the strip's little live dot -- readable from across
-     * the room, the way Quick Share's pulsing circle is. Only ever built while genuinely
-     * discoverable, so it never claims to be listening when the radio is down.
-     */
-    private View buildWaitingHero() {
-        LinearLayout wrap = new LinearLayout(this);
-        wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setGravity(Gravity.CENTER_HORIZONTAL);
-        LinearLayout.LayoutParams wlp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        wlp.bottomMargin = Ui.dp(this, 8);
-        wrap.setLayoutParams(wlp);
-        int vpad = Ui.dp(this, 20);
-        wrap.setPadding(0, vpad, 0, vpad);
-
-        int size = Ui.dp(this, 132);
-        android.widget.FrameLayout radar = new android.widget.FrameLayout(this);
-
-        PulseView pulse = new PulseView(this);
-        pulse.setLive(true, Ui.live(this));
-        radar.addView(pulse, new android.widget.FrameLayout.LayoutParams(size, size));
-
-        // A quiet centre puck so the rings read as emitted from a source, not from nothing.
-        View puck = Ui.glyphInCircle(this, Glyph.Kind.DOWNLOAD, Ui.live(this),
-                Ui.surfaceSunk(this), 60);
-        int puckSize = Ui.dp(this, 60);
-        android.widget.FrameLayout.LayoutParams pp =
-                new android.widget.FrameLayout.LayoutParams(puckSize, puckSize);
-        pp.gravity = Gravity.CENTER;
-        radar.addView(puck, pp);
-
-        wrap.addView(radar, new LinearLayout.LayoutParams(size, size));
-
-        TextView title = Ui.text(this, "Ready to receive", 16, Ui.textColor(this), true);
-        title.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        tlp.topMargin = Ui.dp(this, 16);
-        title.setLayoutParams(tlp);
-        wrap.addView(title);
-
-        TextView sub = Ui.text(this, "Visible to everyone nearby", 12, Ui.textFaint(this), false);
-        sub.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        slp.topMargin = Ui.dp(this, 3);
-        sub.setLayoutParams(slp);
-        wrap.addView(sub);
-        // The live "visible for m:ss" countdown. Held so the poll tick can update it in place
-        // without rebuilding the beacon (which would restart the pulse animation).
-        visibleCountdownView = sub;
-        updateVisibleCountdown((long) VISIBLE_SECONDS * 1000L
-                - (System.currentTimeMillis() - visibleSince));
-
-        return wrap;
+        // ONE hero for both states, ready and not.
+        //
+        // This used to be a big pulsing beacon when discoverable and a small strip when not
+        // -- which is exactly backwards: the state that REQUIRES AN ACTION was the one drawn
+        // small, with the tap target a 13sp grey line inside it. Reported as "I cannot change
+        // from not visible, clicking not doing anything". The device-name bubble is gone with
+        // it; the name now lives in the ready subtitle, where it answers a question a person
+        // actually has ("what will they see?") instead of restating the phone they are holding.
+        content.addView(buildReceiveHero());
     }
 
     /**
@@ -1079,32 +1021,61 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * previous version gave the device's own name more weight than anything the user
      * came here to do.
      */
-    private View buildIdentityStrip() {
+    /**
+     * The receive screen's one control: ready or not, and tappable when it is not.
+     *
+     * <p>Replaces a split where discoverable drew a large pulsing beacon and not-discoverable
+     * drew a small strip — the wrong way round, because the state needing an action was the
+     * one drawn small, with the tap target a grey subtitle inside it. Now both states are the
+     * same hero, the whole card is the target, and the device name lives in the ready
+     * subtitle rather than in a bubble of its own.
+     *
+     * <p>The fields {@code identity}, {@code liveDot} and {@code stateLine} are kept because
+     * {@code setIdentityState()} is called from a dozen places (service death, reconnects,
+     * transfer outcomes) and all of them should keep working without knowing this changed.
+     */
+    private View buildReceiveHero() {
         identity = Ui.cardBox(this);
-        identity.setOrientation(LinearLayout.HORIZONTAL);
-        identity.setGravity(Gravity.CENTER_VERTICAL);
+        identity.setOrientation(LinearLayout.VERTICAL);
+        identity.setGravity(Gravity.CENTER_HORIZONTAL);
+        int pad = Ui.dp(this, 22);
+        identity.setPadding(pad, pad, pad, pad);
 
-        // A pulsing indicator, not a static dot: waiting to receive keeps the radio up and
-        // the screen awake, and the rings say "live and reaching outward" the way a still
-        // dot never did. The box is wider than the ~8dp core so the rings have room to
-        // expand into it rather than being clipped at the core's edge.
+        // The ring pulses only while genuinely discoverable. A hero that animates when
+        // nothing is listening is the same class of lie as the label that used to say "not
+        // visible" while Quick Share was advertising.
+        int ringBox = Ui.dp(this, 120);
+        android.widget.FrameLayout ring = new android.widget.FrameLayout(this);
         liveDot = new PulseView(this);
-        int dotBox = Ui.dp(this, 22);
-        identity.addView(liveDot, new LinearLayout.LayoutParams(dotBox, dotBox));
+        ring.addView(liveDot, new android.widget.FrameLayout.LayoutParams(ringBox, ringBox));
+        View puck = Ui.glyphInCircle(this, Glyph.Kind.DOWNLOAD,
+                discoverable ? Ui.live(this) : Ui.textFaint(this), Ui.surfaceSunk(this), 56);
+        int puckBox = Ui.dp(this, 56);
+        android.widget.FrameLayout.LayoutParams pp =
+                new android.widget.FrameLayout.LayoutParams(puckBox, puckBox);
+        pp.gravity = Gravity.CENTER;
+        ring.addView(puck, pp);
+        identity.addView(ring, new LinearLayout.LayoutParams(ringBox, ringBox));
 
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams lp =
-                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        lp.leftMargin = Ui.dp(this, 12);
-        col.setLayoutParams(lp);
+        deviceLine = Ui.text(this, "", 17, Ui.textColor(this), true);
+        deviceLine.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tl.topMargin = Ui.dp(this, 14);
+        deviceLine.setLayoutParams(tl);
+        identity.addView(deviceLine);
 
-        deviceLine = Ui.text(this, android.os.Build.MODEL.toUpperCase(), 15, Ui.textColor(this), true);
-        deviceLine.setLetterSpacing(0.04f);
-        col.addView(deviceLine);
         stateLine = Ui.text(this, "", 13, Ui.textMuted(this), false);
-        col.addView(stateLine);
-        identity.addView(col);
+        stateLine.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        sl.topMargin = Ui.dp(this, 4);
+        stateLine.setLayoutParams(sl);
+        identity.addView(stateLine);
+
+        // The countdown writes into the subtitle, so "Pixel 10 Pro · 9:54 left"
+        // updates in place without rebuilding the hero and restarting the pulse.
+        visibleCountdownView = stateLine;
         // Re-state what is actually true, rather than a default that may already be wrong.
         // POLICY BEATS THE RADIO in the explanation, because only one of them is the
         // person's own doing. With AirDrop switched off the chip said "off" while this
@@ -1113,6 +1084,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // it off, say that; the radio is not the reason and mentioning it invites them to
         // go looking for a fault that is not there.
         if (!transportUp() && allowed(ITarishService.PROTOCOL_AIRDROP)) {
+            setHeroTitle("Cannot receive");
             setIdentityState("AirDrop radio unavailable \u2014 see Send screen", false);
         } else {
             // SAY WHY, not just what. Bare "not visible" appears while sending -- which is
@@ -1131,8 +1103,11 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             identity.setClickable(false);
             if (!discoverable && !sendMode && canReceive) {
                 // The ten-minute window has lapsed (or was never opened). Offer a deliberate
-                // re-enable rather than silently renewing: tap to be visible for another 10.
-                setIdentityState("not visible — tap to be visible for 10 minutes", false);
+                // re-enable rather than silently renewing: tap to be ready for another 10.
+                // The WHOLE CARD is the target now, not a line of grey text inside it.
+                setHeroTitle("Not receiving");
+                setIdentityState("Tap to receive for 10 minutes", false);
+                identity.setClickable(true);
                 identity.setOnClickListener(v -> {
                     setDiscoverable(true, "re-enable");
                     render();
@@ -1152,12 +1127,17 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 //
                 // The operator reported it as "I cannot change from not visible, clicking
                 // not doing anything" -- while a transfer was in fact arriving.
-                setIdentityState("visible to Quick Share — AirDrop is off", false);
+                setHeroTitle("Ready for Quick Share");
+                setIdentityState("AirDrop is off — turn it on in Settings", false);
+            } else if (discoverable) {
+                setHeroTitle("Ready to receive");
+                // The device name belongs HERE: "what will they see?" is a question a person
+                // actually has, and this is the moment they have it. The countdown overwrites
+                // this line on the next tick -- see updateVisibleCountdown.
+                setIdentityState(deviceName(), true);
             } else {
-                setIdentityState(
-                        discoverable ? "visible to everyone nearby — screen stays on"
-                                     : (sendMode ? "not visible while sending" : "not visible"),
-                        discoverable);
+                setHeroTitle("Not receiving");
+                setIdentityState(sendMode ? "Not visible while sending" : "Not visible", false);
             }
         }
         return identity;
@@ -2102,6 +2082,24 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
     }
 
+    /** The hero's headline — "Ready to receive", "Not receiving". Safe before it is built. */
+    private void setHeroTitle(String title) {
+        if (deviceLine != null) {
+            deviceLine.setText(title);
+        }
+    }
+
+    /**
+     * What peers will see. The configured name if there is one, else the model.
+     *
+     * Mirrors the daemon's own fallback (persist.tarish.name, then ro.product.model) so the
+     * screen cannot promise a name the daemon will not advertise.
+     */
+    private String deviceName() {
+        String n = policy == null ? null : policy.deviceName;
+        return n == null || n.trim().isEmpty() ? android.os.Build.MODEL : n.trim();
+    }
+
 
 
     // -------------------------------------------------------------- modes ---
@@ -2466,7 +2464,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         }
         long s = Math.max(0, remainingMs / 1000);
         visibleCountdownView.setText(String.format(java.util.Locale.US,
-                "Visible to everyone · %d:%02d left", s / 60, s % 60));
+                // The NAME, then the time. "What will they see?" and "for how long?"
+                // are the two questions this line exists to answer, and the name is the
+                // one a person cannot work out -- it may be a configured name, not the model.
+                "%s · %d:%02d left", deviceName(), s / 60, s % 60));
     }
 
     private void setDiscoverable(boolean visible, String why) {
