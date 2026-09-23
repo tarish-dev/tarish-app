@@ -61,12 +61,21 @@ final class QuickShareSender {
     private QuickShareSender() {}
 
     /**
-     * Connect to {@code peer} and start a transfer through the daemon.
+     * Connect to {@code peer} and run a transfer through the daemon.
      *
+     * <p>This BLOCKS for the whole transfer, not just the negotiation -- see the note at
+     * {@code onStarted} below, which is the only way a caller learns the id while the
+     * transfer is still running.
+     *
+     * @param onStarted called with the transfer id the moment the daemon accepts it, before
+     *                  any bytes move. May be null. Callers that offer a Cancel MUST use
+     *                  this rather than the return value, or Cancel is dead for the entire
+     *                  transfer.
      * @return the transfer id, or 0 if it could not be started.
      */
     static long send(ITarishService service, TarishPeer peer,
-                     ParcelFileDescriptor[] files, String[] names) {
+                     ParcelFileDescriptor[] files, String[] names,
+                     java.util.function.LongConsumer onStarted) {
         // THE LAN FIRST, AND IT IS NOT AN OPTIMISATION.
         //
         // Wi-Fi LAN is a bootstrap medium in this protocol, not something a transfer
@@ -166,6 +175,25 @@ final class QuickShareSender {
             closeQuietly(socket);
             closeQuietly(pair[1]);
             return 0;
+        }
+
+        // THE ID HAS TO ESCAPE BEFORE pump(), NOT AFTER IT.
+        //
+        // pump() does not negotiate and return -- it runs the WHOLE transfer and comes back
+        // when the last byte has gone. So a caller that waits for send() to return learns
+        // the transfer id only once the transfer is already over, and for its entire
+        // duration it holds 0.
+        //
+        // That is what made Cancel dead on Quick Share sends: MainActivity.cancelActive()
+        // returns early on activeTransfer == 0, so every tap through a minutes-long
+        // Bluetooth transfer did nothing at all, silently -- no log line, no UI change, no
+        // way out but force-stopping the app. Reported twice from the device before anyone
+        // looked here.
+        //
+        // AirDrop never had the bug: sendFiles() is a synchronous binder call that hands
+        // back an id straight away and leaves the transfer to the daemon.
+        if (onStarted != null) {
+            onStarted.accept(id);
         }
         pump(socket, pair[1]);
         return id;

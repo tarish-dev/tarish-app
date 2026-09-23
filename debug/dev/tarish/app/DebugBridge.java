@@ -184,10 +184,14 @@ final class DebugBridge {
                 }
                 ParcelFileDescriptor pfd =
                         ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY);
+                // null: this is a blocking debug command with no Cancel to keep alive, so
+                // there is nothing to hand the id to early. The share sheet passes a real
+                // callback -- see MainActivity.
                 long id = QuickShareSender.send(svc,
                         peer,
                         new ParcelFileDescriptor[]{pfd},
-                        new String[]{f.getName()});
+                        new String[]{f.getName()},
+                        null);
                 if (id == 0) {
                     return "error send refused";
                 }

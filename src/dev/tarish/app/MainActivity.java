@@ -2875,7 +2875,22 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     private void cancelActive() {
-        if (service == null || activeTransfer == 0) {
+        // NEVER RETURN FROM HERE IN SILENCE.
+        //
+        // This used to `return` on activeTransfer == 0 with no log and no UI change, which
+        // is indistinguishable from a dead button -- and on Quick Share sends it WAS dead,
+        // for the whole transfer, because the id arrived only after send() finished. That
+        // is fixed at the callsite; what is left is the genuinely un-cancellable window
+        // before the daemon has issued an id at all (BLE discovery, RFCOMM connect), and
+        // the person deserves to be told rather than left tapping.
+        if (service == null) {
+            Log.w(TAG, "cancel: no service");
+            progressLabel.setText("Cannot cancel — not connected");
+            return;
+        }
+        if (activeTransfer == 0) {
+            Log.w(TAG, "cancel: no transfer id yet (still connecting) — nothing to cancel");
+            progressLabel.setText("Still connecting — cannot cancel yet");
             return;
         }
         try {
@@ -2883,6 +2898,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             progressLabel.setText("Cancelling…");
         } catch (Exception e) {
             Log.e(TAG, "cancelTransfer failed", e);
+            progressLabel.setText("Cancel failed");
         }
     }
 
@@ -2953,18 +2969,26 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             final String[] toName = names.toArray(new String[0]);
             final ITarishService svc = service;
             new Thread(() -> {
-                long id = QuickShareSender.send(svc, peer, toSend, toName);
+                // ADOPT THE ID THE MOMENT THE DAEMON ISSUES IT, not when send() returns.
+                //
+                // QuickShareSender.send() blocks for the WHOLE transfer, so its return value
+                // arrives only once everything is over. Setting activeTransfer from there
+                // left it 0 for the entire transfer, and cancelActive() gives up on
+                // activeTransfer == 0 -- so Cancel was dead for every Quick Share send, in
+                // silence. The callback fires before the first byte moves.
+                long id = QuickShareSender.send(svc, peer, toSend, toName,
+                        started -> main.post(() -> {
+                            activeTransfer = started;
+                            // From here the transfer must survive this screen. It runs
+                            // partly in THIS process -- we own the Bluetooth socket and pump
+                            // bytes through it -- so a backgrounded app being killed takes
+                            // the socket with it.
+                            TransferService.watch(getApplicationContext(), started,
+                                    describeSending(), true);
+                        }));
                 main.post(() -> {
                     if (id == 0) {
                         showOutcome("Could not reach " + peer.name, "the device did not answer");
-                    } else {
-                        activeTransfer = id;
-                        // From here the transfer must survive this screen. It runs partly
-                        // in THIS process -- we own the Bluetooth socket and pump bytes
-                        // through it -- so a backgrounded app being killed takes the
-                        // socket with it.
-                        TransferService.watch(getApplicationContext(), id,
-                                describeSending(), true);
                     }
                 });
                 for (ParcelFileDescriptor pfd : toSend) {
