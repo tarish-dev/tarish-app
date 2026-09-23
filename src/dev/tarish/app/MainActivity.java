@@ -1123,6 +1123,12 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             // (see keepScreenAwake), and a phone whose screen will not sleep with no
             // explanation reads as a fault. One clause turns it into a statement.
             boolean canReceive = policy != null && PolicyStore.allowsReceive(policy.airdrop);
+            boolean qsReceive = policy != null && PolicyStore.allowsReceive(policy.quickshare);
+            // Clear any handler a previous render attached. Only the branch that can
+            // actually act sets one, and a leftover listener is how a control ends up
+            // looking live while doing nothing.
+            identity.setOnClickListener(null);
+            identity.setClickable(false);
             if (!discoverable && !sendMode && canReceive) {
                 // The ten-minute window has lapsed (or was never opened). Offer a deliberate
                 // re-enable rather than silently renewing: tap to be visible for another 10.
@@ -1131,6 +1137,22 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                     setDiscoverable(true, "re-enable");
                     render();
                 });
+            } else if (!discoverable && !sendMode && qsReceive) {
+                // THIS LINE USED TO LIE.
+                //
+                // Everything above it is about AirDrop: `discoverable` governs the mDNS
+                // advertisement and the httpd that answers /Discover, and canReceive reads
+                // policy.airdrop alone. Quick Share is advertised over BLE by a different
+                // component entirely, on its own schedule -- so with AirDrop off and Quick
+                // Share on, the screen said "not visible" while the device was discoverable
+                // and receiving. Confirmed from the log at the moment the screen read that:
+                //
+                //   TarishQsReceiver: advertising as a Quick Share endpoint (57 bytes)
+                //   tarishsharingd: quickshare: advertisement for hybs over BLE
+                //
+                // The operator reported it as "I cannot change from not visible, clicking
+                // not doing anything" -- while a transfer was in fact arriving.
+                setIdentityState("visible to Quick Share — AirDrop is off", false);
             } else {
                 setIdentityState(
                         discoverable ? "visible to everyone nearby — screen stays on"

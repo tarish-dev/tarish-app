@@ -405,13 +405,26 @@ public final class SettingsActivity extends Activity {
         boolean managed = airdrop ? policy.airdropManaged : policy.quickshareManaged;
         String key = airdrop ? PolicyStore.keyAirdrop() : PolicyStore.keyQuickshare();
 
+        // "Allow receiving", not "Receive". These are PERMISSIONS, not live state.
+        //
+        // Read as a state, "Receive [on]" is a promise the app does not keep: visibility is
+        // tied to the UI on purpose (see the note at the top of AndroidManifest.xml --
+        // nothing advertises from boot, and MainActivity turns discovery on in onResume and
+        // off in onPause). So someone could switch this on, close the app, and not be able
+        // to receive, with nothing anywhere saying why. That was reported as a bug and is
+        // not one; the wording was.
+        //
+        // The live answer belongs on the Receive screen, next to the visibility countdown,
+        // which already says "Visible to everyone · 9:54 left" or "not visible". Two
+        // different questions, answered in two different places, rather than one control
+        // pretending to answer both.
         LinearLayout card = Ui.cardBox(this);
-        card.addView(toggle("Receive", PolicyStore.allowsReceive(mode), !managed, on -> {
+        card.addView(toggle("Allow receiving", PolicyStore.allowsReceive(mode), !managed, on -> {
             int updated = PolicyStore.withReceive(currentMode(airdrop), on);
             apply(airdrop, key, updated);
         }));
         card.addView(Ui.rule(this));
-        card.addView(toggle("Send", PolicyStore.allowsSend(mode), !managed, on -> {
+        card.addView(toggle("Allow sending", PolicyStore.allowsSend(mode), !managed, on -> {
             int updated = PolicyStore.withSend(currentMode(airdrop), on);
             apply(airdrop, key, updated);
         }));
@@ -422,6 +435,10 @@ public final class SettingsActivity extends Activity {
 
         if (managed) {
             caption("Set by your organization.");
+        } else {
+            // Say the quiet part. Allowing is not the same as being discoverable, and the
+            // gap between them is where "I turned it on and it does not work" comes from.
+            caption("Tarish receives while the app is open. Open Receive to be discoverable.");
         }
     }
 
