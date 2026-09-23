@@ -133,6 +133,21 @@
     -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+      To ask WHICH network the Wi-Fi Direct group is, so the upgrade socket can be BOUND to
+      it (WifiDirectJoiner.bindToP2p). getAllNetworks()/getLinkProperties() need this.
+
+      Two things depend on saying which network we meant. Routing: Android routes by fwmark
+      with a table per network, and an unmarked socket goes to the default network, which
+      off-network is nothing at all. And the VPN kill-switch: its rule only matches sockets
+      whose "explicitly selected network" fwmark bit is CLEAR, so a bound socket is not
+      blocked by it. See grapheneos/docs/VPN-LOCKDOWN.md.
+
+      A normal permission, granted at install, and read-only: it says which networks exist
+      and changes nothing.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <!-- BLE advertising is the discovery trigger; without it the device is invisible. -->
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 

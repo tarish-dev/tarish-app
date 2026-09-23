@@ -4,6 +4,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.net.LinkProperties;
+import android.net.Network;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pInfo;
@@ -231,7 +234,7 @@ final class WifiDirectJoiner {
                 return null;
             }
 
-            ParcelFileDescriptor sock = connectSocket(target, up.port, remaining(deadline));
+            ParcelFileDescriptor sock = connectSocket(ctx, target, up.port, remaining(deadline));
             if (sock == null) {
                 cancel(manager, channel);
                 return null;
@@ -285,6 +288,49 @@ final class WifiDirectJoiner {
     }
 
     /**
+     * Bind a socket to the Wi-Fi Direct network, so the kernel knows which one we meant.
+     *
+     * <p>Found by INTERFACE NAME rather than by transport type. There is no public
+     * {@code TRANSPORT_WIFI_P2P} to match on, and the group's interface is reliably
+     * {@code p2p-wlan0-N} — the N changes per group, which is why this matches a prefix and
+     * not a fixed name.
+     *
+     * <p>Best effort by design. Every failure path here leaves the socket unbound, which is
+     * how this worked before, so adding it cannot make anything worse:
+     * <ul>
+     *   <li>no P2P network yet — the group may still be forming</li>
+     *   <li>{@code getAllNetworks()} hiding it, which is a real possibility under VPN
+     *       lockdown, where ConnectivityService filters what a blocked uid may see. If that
+     *       turns out to be the case, this needs the routing-rule approach instead — see
+     *       grapheneos/docs/VPN-LOCKDOWN.md.</li>
+     *   <li>{@code bindSocket} throwing, e.g. the network going away mid-call</li>
+     * </ul>
+     */
+    private static void bindToP2p(Context ctx, FileDescriptor fd) {
+        try {
+            ConnectivityManager cm =
+                    (ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) {
+                return;
+            }
+            for (Network n : cm.getAllNetworks()) {
+                LinkProperties lp = cm.getLinkProperties(n);
+                String iface = lp == null ? null : lp.getInterfaceName();
+                if (iface != null && iface.startsWith("p2p-")) {
+                    n.bindSocket(fd);
+                    Log.i(TAG, "bound the upgrade socket to " + iface);
+                    return;
+                }
+            }
+            Log.i(TAG, "no Wi-Fi Direct network to bind to; continuing unbound");
+        } catch (Throwable t) {
+            // Deliberately Throwable: this is an optimisation on the path to a transfer, and
+            // nothing here is worth failing the transfer over.
+            Log.w(TAG, "could not bind the upgrade socket to the P2P network", t);
+        }
+    }
+
+    /**
      * Connect a TCP socket with a real deadline, and return it as a descriptor.
      *
      * Built on Os rather than java.net.Socket because the daemon needs the DESCRIPTOR, and
@@ -293,12 +339,31 @@ final class WifiDirectJoiner {
      * sit for the kernel's full retry schedule, which is minutes, and the daemon would give
      * up on us long before that.
      */
-    private static ParcelFileDescriptor connectSocket(InetAddress target, int port, long budgetMs) {
+    private static ParcelFileDescriptor connectSocket(Context ctx, InetAddress target,
+                                                      int port, long budgetMs) {
         FileDescriptor fd = null;
         try {
             fd = Os.socket(
                     target instanceof Inet4Address ? OsConstants.AF_INET : OsConstants.AF_INET6,
                     OsConstants.SOCK_STREAM, 0);
+            // SAY WHICH NETWORK, BEFORE CONNECTING. Two things depend on it.
+            //
+            // 1. THE VPN KILL-SWITCH. "Block connections without VPN" installs
+            //      14000: from all fwmark 0x0/0x20000 iif lo uidrange 1-10206 prohibit
+            //    which covers this app's uid. Note `fwmark 0x0/0x20000`: it only matches when
+            //    the "explicitly selected network" bit is CLEAR. A socket bound to a Network
+            //    carries that bit, so the block stops matching -- no routing rules, no
+            //    privileged changes, just saying which network we meant. This is Android's
+            //    own mechanism, not a trick.
+            //
+            // 2. ROUTING GENERALLY. Android routes by fwmark with a table per network, and an
+            //    unmarked socket goes to the default network -- which off-network is nothing
+            //    at all. The manifest note on INTERNET already says only the app can bind to
+            //    the P2P network the framework just created.
+            //
+            // Best effort on purpose: if the network cannot be found or the bind fails we
+            // carry on unbound, which is exactly what this did before. It can only help.
+            bindToP2p(ctx, fd);
             int flags = Os.fcntlInt(fd, OsConstants.F_GETFL, 0);
             Os.fcntlInt(fd, OsConstants.F_SETFL, flags | OsConstants.O_NONBLOCK);
 
