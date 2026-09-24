@@ -290,6 +290,44 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         @Override public void onPeerFound(TarishPeer peer) {}
         @Override public void onPeerLost(String peerId) {}
 
+        /**
+         * The daemon asking whether the exemption should stay open. Answer only if it
+         * genuinely should.
+         *
+         * THIS MUST NOT BE A REFLEX. Replying because the callback arrived would prove only
+         * that this process exists, which is the one thing the daemon can already see. The
+         * answer has to mean "a person unlocked Tarish and is still in front of it", so it
+         * is gated on exactly that: the window still open, and this activity resumed.
+         *
+         * Everything else is silence, and silence is what closes the window — being swiped
+         * away, backgrounded, or simply past ten minutes. There is no lock call to make on
+         * the way out and nothing to deliver from a process being killed.
+         *
+         * Runs on a binder thread, so the reply goes out from here directly rather than
+         * being posted to the main thread: a main thread busy enough to delay it is exactly
+         * the case where the window should lapse.
+         */
+        @Override
+        public void onKeepUnlockedChallenge(long nonce) {
+            if (!AuthWindow.isOpen() || !resumed) {
+                // Deliberately quiet. This is the ordinary path every time the app is in the
+                // background, and logging it would bury the log at one line every five
+                // seconds for as long as Tarish is installed.
+                return;
+            }
+            ITarishService s = service;
+            if (s == null) {
+                return;
+            }
+            try {
+                s.keepUnlocked(nonce);
+            } catch (Exception e) {
+                // The window lapses on the daemon's deadline. Nothing to retry: the next
+                // challenge is along in a few seconds if the binder recovers.
+                Log.w(TAG, "could not answer the keep-unlocked challenge", e);
+            }
+        }
+
         @Override
         public void onTransferOffered(long id, String peer, String[] names, long bytes,
                 int protocol) {
