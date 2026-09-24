@@ -1214,27 +1214,29 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 // The WHOLE CARD is the target now, not a line of grey text inside it.
                 heroReady = false;
                 setHeroTitle("Not receiving");
-                setIdentityState("Tap to receive for 10 minutes", false);
+                setIdentityState("Tap to unlock receiving for 10 minutes", false);
                 identity.setClickable(true);
-                identity.setOnClickListener(v -> {
-                    setDiscoverable(true, "re-enable");
-                    render();
-                });
+                identity.setOnClickListener(v -> openWindow("re-enable"));
             } else if (!discoverable && !sendMode && qsReceive) {
                 // THIS LINE USED TO LIE.
                 //
                 // Everything above it is about AirDrop: `discoverable` governs the mDNS
                 // advertisement and the httpd that answers /Discover, and canReceive reads
-                // policy.airdrop alone. Quick Share is advertised over BLE by a different
-                // component entirely, on its own schedule -- so with AirDrop off and Quick
-                // Share on, the screen said "not visible" while the device was discoverable
-                // and receiving. Confirmed from the log at the moment the screen read that:
+                // policy.airdrop alone. Quick Share USED TO advertise on its own schedule,
+                // over BLE from this app and over LAN mDNS from the daemon, consulting none
+                // of this -- so with AirDrop off and Quick Share on, the screen said "not
+                // visible" while the device was discoverable and receiving. Confirmed from
+                // the log at the moment the screen read that:
                 //
                 //   TarishQsReceiver: advertising as a Quick Share endpoint (57 bytes)
                 //   tarishsharingd: quickshare: advertisement for hybs over BLE
                 //
                 // The operator reported it as "I cannot change from not visible, clicking
                 // not doing anything" -- while a transfer was in fact arriving.
+                //
+                // Both Quick Share advertisers now follow the same window (#40), so this
+                // branch is about POLICY -- AirDrop off, Quick Share on -- and no longer
+                // about two components disagreeing on whether we are visible.
                 heroReady = false;
                 setHeroTitle("Ready for Quick Share");
                 setIdentityState("AirDrop is off — turn it on in Settings", false);
@@ -2606,6 +2608,36 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 // are the two questions this line exists to answer, and the name is the
                 // one a person cannot work out -- it may be a configured name, not the model.
                 "%s · %d:%02d left", deviceName(), s / 60, s % 60));
+    }
+
+    /**
+     * Open a sharing window: authenticate first, then become discoverable AND take the VPN
+     * lockdown exemption for the same period.
+     *
+     * ONE ACT, ONE WINDOW. Visibility and the exemption used to be independent -- the first
+     * was a ten-minute timer, the second lasted as long as AirDrop was on. Tying them to the
+     * same authenticated period is what the operator asked for ("authentication will be
+     * required for send and receive") and it is also the only version that is explicable:
+     * "you are sharing for the next ten minutes" is one sentence, where "you are visible for
+     * ten minutes and separately exempt from the VPN indefinitely" is two and the second one
+     * is the alarming half.
+     *
+     * If authentication is declined nothing changes -- not discoverable, not exempt. There is
+     * no partial state to reason about.
+     *
+     * With no VPN kill-switch in force the exemption half is a no-op: the routing rule moves
+     * from 15500 to 13500 and nothing was prohibiting it at either. So this costs one prompt
+     * and buys, on an ordinary device, exactly the visibility window it always had.
+     */
+    private void openWindow(String why) {
+        AuthWindow.request(this, service, ok -> {
+            if (ok) {
+                setDiscoverable(true, why);
+            }
+            // Render either way: on success to show the countdown, on refusal so the card
+            // stops looking like it is waiting for something.
+            render();
+        });
     }
 
     private void setDiscoverable(boolean visible, String why) {
