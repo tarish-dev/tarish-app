@@ -29,13 +29,25 @@ import dev.tarish.ITarishService;
  * startup -- so a crash on either side ends with the exemption withdrawn rather than stuck
  * open. See ITarishService.setAuthenticated.
  *
- * NOT A KEYSTORE-BACKED PROOF. A stronger design would tie the window to a Keystore key with
- * setUserAuthenticationRequired, so the daemon could verify that authentication really
- * happened rather than trust the report. That is worth doing and is deliberately not what
- * this is: the daemon would need to verify an attestation, which means a parser in the
- * process holding CAP_NET_ADMIN, which is the thing this architecture spends most of its
- * effort avoiding. The report is trusted because the CALLER is, and the caller is pinned by
- * signature.
+ * NOT A KEYSTORE-BACKED PROOF, AND THAT IS A REASONABLE PLACE TO STOP. A stronger design
+ * would tie the window to a Keystore key with setUserAuthenticationRequired so the daemon
+ * could VERIFY authentication rather than trust a report. It is not built, for two reasons
+ * and the second matters more than the first.
+ *
+ * Verifying an attestation means a parser in the process holding CAP_NET_ADMIN, which is
+ * what this architecture spends most of its effort avoiding.
+ *
+ * And the threat it would address is thin here. This app ships IN the image and is platform
+ * signed, so there is no substitution path — no sideload, no repackage, no third-party
+ * build. "Compromised app" reduces to the platform key leaking, in which case the exemption
+ * is nobody's biggest problem, or to a bug in this app being exploited. That second one is
+ * real, and worth naming honestly because this app is deliberately the process that parses
+ * hostile file content — that is why such parsing was kept out of tarishsharingd. But an
+ * attacker who has that already holds this uid and can drive the ordinary share path, and
+ * what the exemption adds is link-local on tlink0 against a table holding one route.
+ *
+ * So it is a stated residual bounded by the same scoping as everything else, not an
+ * engineering debt. Revisit if the app ever stops being part of the image.
  */
 final class AuthWindow {
     private static final String TAG = "TarishAuth";
