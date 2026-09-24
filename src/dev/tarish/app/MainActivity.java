@@ -2300,6 +2300,11 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         super.onPause();
         main.removeCallbacks(poll);
         setDiscoverable(false, "onPause");
+        // THE EXEMPTION IS FOR SOMEONE WHO IS PRESENT AND LOOKING AT IT, so leaving the
+        // foreground closes it -- not the ten-minute timer running out later. The daemon
+        // would close it anyway on its cap, and again at its own startup; this just makes
+        // the common case immediate instead of eventual.
+        AuthWindow.close(service);
         // The radio, unlike visibility, is released on leaving the foreground. The
         // daemon holds it for another half-minute so a file picker or a glance at
         // another app does not tear the link down and back up.
