@@ -1,12 +1,32 @@
-# The vendor AWDL ABI that `tarishd` calls
+# The AWDL ABI that `tarishd` calls — and its two implementations
+
+`tarishd` does not implement AWDL. It `dlopen`s a library by the soname
+`libmosey_daemon_ffi.so` and calls five functions. **Two different libraries provide that
+ABI, and which one is on the device is an integrator's choice, not the daemon's.**
+
+| | what it is | where |
+|---|---|---|
+| **`tlink`** | **our own open implementation — what ships in production** | [tarish-link](https://github.com/tarish-dev/tarish-link), crate `tlink-shim`, built as `mosey_daemon_ffi` |
+| `libmosey` | Google's closed blob from the Pixel vendor image | `/system_ext/lib64/libmosey_daemon_ffi.so` |
+
+> **This file used to be titled "the vendor AWDL ABI" and opened by stating that
+> `libmosey_daemon_ffi.so` ships in the Pixel vendor image.** Read on its own it says Tarish
+> depends on a closed Google component for AWDL, which is the project's central claim
+> inverted — and it is the claim external reviewers check first. AWDL in production is ours.
+>
+> Everything below still describes `libmosey`, and deliberately so: it is the reference
+> implementation, it is the fallback, and it is the thing the ABI was recovered *from*. tlink
+> is compatible with it because this document is what tlink was written against. Read it as
+> "here is the contract, and here is the implementation it was reverse-engineered from" — not
+> as "here is what your phone is running".
 
 `libmosey_daemon_ffi.so` ships in the Pixel vendor image and contains the AWDL
 protocol: master election, availability-window synchronisation, peer tables and
-action frames. `tarishd` `dlopen`s it and calls five functions.
+action frames.
 
 This file is the reference a maintainer needs. It is **not** a header shipped by
 the vendor — every line below was recovered by observation, and the vendor is
-free to change it.
+free to change it. That is precisely why there is a second implementation.
 
 ## The library
 
@@ -92,12 +112,15 @@ takes seven arguments. That implies at least five prior revisions, so treat the
 ABI as versioned and unstable across vendor images: `dlsym` the exact name and
 fail loudly rather than degrade.
 
-`tarishd` isolates every call to this library in `src/tarishd.c` for that reason.
+`tarishd` isolates every call to this library in `src/mosey.rs` for that reason — one
+module, so that swapping the implementation underneath it is a build-time choice and
+touches nothing else. That is what makes shipping tlink instead of `libmosey` a
+one-file change.
 
 ## Provenance
 
 Recovered by breakpointing Google's `mosey_server` during real AirDrop transfers
 and reading the argument registers, then confirmed by calling the library
 directly. The full investigation — including the traps and several wrong turns —
-is kept with the OS integration, alongside the raw captures
-in `awdl/captures/`.
+is kept with the OS integration, alongside the raw captures in `awdl/captures/` — that
+material is in the private integration repo, not here.
