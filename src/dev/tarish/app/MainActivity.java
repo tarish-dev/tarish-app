@@ -260,7 +260,7 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             // the window ends silently and the screen keeps showing peers and the inbox
             // until something else happens to redraw -- which is precisely the state the
             // lock exists to prevent.
-            if (!AuthWindow.isOpen()) {
+            if (AuthWindow.lockRequired() && !AuthWindow.isOpen()) {
                 Log.i(TAG, "authenticated window ended — relocking");
                 render();
                 main.postDelayed(this, POLL_MS);
@@ -659,9 +659,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // no error -- indistinguishable from nobody being nearby. The app is the visible
         // half of something that mostly is not an app, and when the other half is absent
         // that is the only thing worth saying.
-        // NO CREDENTIAL, NO APP. Checked before the daemon, because it is the more
-        // actionable of the two and does not depend on the daemon being up.
-        if (!AuthWindow.canAuthenticate(this)) {
+        // NO CREDENTIAL, NO APP -- but only when a lock is actually required. Blocking the
+        // whole app for a missing PIN on a device with no kill-switch would demand a screen
+        // lock to use a file-sharing app, which is not a trade anyone agreed to.
+        if (AuthWindow.lockRequired() && !AuthWindow.canAuthenticate(this)) {
             content.addView(buildNoCredentialCard());
             return;
         }
@@ -675,7 +676,13 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         //
         // This is the FIRST thing render() decides after the credential check, so nothing
         // below it can leak a peer name, a device name or an inbox entry to a glance.
-        if (!AuthWindow.isOpen()) {
+        //
+        // GATED ON A REAL KILL-SWITCH, decided by the daemon, because the app cannot see one.
+        // This used to be unconditional, and the result reached hardware: Tarish locked
+        // itself and blamed a VPN kill-switch on a phone where that setting was off. The lock
+        // is here to protect the routing exemption; with no kill-switch there is no exemption
+        // to protect, so it is friction with nothing behind it.
+        if (AuthWindow.lockRequired() && !AuthWindow.isOpen()) {
             content.addView(buildLockedCard());
             return;
         }
@@ -2451,6 +2458,10 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             // before anything else is asked of it -- including by a daemon that has just
             // restarted underneath us. Pushed on every connect rather than on change.
             pushPolicy();
+            // Ask whether a kill-switch is really in force before anything decides to lock.
+            // On every connect, not once: a daemon restart, or the person turning the VPN
+            // setting on or off, both change the answer while the app is running.
+            AuthWindow.refreshLockRequired(service);
             // Notice the daemon going away, rather than finding out on the next call
             // and treating it as an ordinary failure.
             binder.linkToDeath(deathRecipient, 0);
@@ -2521,6 +2532,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // settings screen, or an administrator may have changed a managed value while
         // this activity was stopped. Both must take effect before we ask to be visible.
         pushPolicy();
+        // Same reasoning for the kill-switch: coming back from Settings is exactly when
+        // someone has just turned "Block connections without VPN" on or off.
+        AuthWindow.refreshLockRequired(service);
         render();
         setDiscoverable(!sendMode, "onResume");
         main.post(poll);

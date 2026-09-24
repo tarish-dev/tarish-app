@@ -63,7 +63,52 @@ final class AuthWindow {
      */
     private static long closesAtMs = 0L;
 
+    /**
+     * Whether the app should lock at all — i.e. whether a VPN kill-switch is really in force.
+     *
+     * DEFAULTS TO TRUE, and is only ever lowered by a real answer from the daemon. Unknown
+     * means locked, so being wrong costs one authentication prompt rather than skipping the
+     * window on a device that depends on it.
+     */
+    private static boolean lockRequired = true;
+
     private AuthWindow() {}
+
+    /**
+     * Ask the daemon whether a kill-switch is actually in force, and remember the answer.
+     *
+     * WHY THIS EXISTS. The lock used to run unconditionally, because the app has no way to
+     * see lockdown state: Settings.Global.always_on_vpn_lockdown reads null while lockdown is
+     * in force. So on a device with "Block connections without VPN" switched off, Tarish
+     * still locked itself, demanded a fingerprint, and told the person a VPN kill-switch was
+     * the reason. It was a security ritual with nothing behind it, and it shipped.
+     *
+     * Only tarishd can answer — it takes an RTM_GETRULE dump looking for a `prohibit` rule —
+     * so the answer comes over binder and is cached here.
+     *
+     * Cheap on the daemon side (a property read), but still not called from a draw path.
+     */
+    static void refreshLockRequired(ITarishService service) {
+        if (service == null) {
+            return;   // keep the previous answer; absence is not evidence
+        }
+        try {
+            boolean was = lockRequired;
+            lockRequired = service.isLockdownActive();
+            if (was != lockRequired) {
+                Log.i(TAG, "lock " + (lockRequired ? "REQUIRED — a VPN kill-switch is in force"
+                                                   : "not required — no VPN kill-switch"));
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "could not ask the daemon about lockdown — keeping the lock on", e);
+            lockRequired = true;
+        }
+    }
+
+    /** True when the app should be behind authentication. Fail-closed default. */
+    static boolean lockRequired() {
+        return lockRequired;
+    }
 
     static boolean isOpen() {
         return SystemClock.elapsedRealtime() < closesAtMs;
