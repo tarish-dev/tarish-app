@@ -42,23 +42,30 @@ network input: one property read into a 128-byte buffer against a 92-byte
 `PROP_VALUE_MAX`, and one netlink ACK into a fixed 512-byte buffer, length-checked
 before any indexing, from the kernel. Everything `unsafe` is at an FFI boundary.
 
-**The honest caveat: our code is not the risk in that process — `libmosey` is.**
-`tarishd` holds no persistent sockets of its own; its netlink socket is opened and
-closed per call. Every socket in its fd table, plus `/dev/tun` and the epoll and
-eventfd, belongs to the vendor library — which parses hostile over-the-air AWDL
-frames inside a process holding `CAP_NET_ADMIN` and `CAP_NET_RAW`.
+**The caveat, and it is smaller than it was.** `tarishd` holds no persistent sockets of its
+own; its netlink socket is opened and closed per call. Every socket in its fd table, plus
+`/dev/tun` and the epoll and eventfd, belongs to the AWDL library — which parses hostile
+over-the-air frames inside a process holding `CAP_NET_ADMIN` and `CAP_NET_RAW`.
 
-That is structural rather than a regression. The AWDL library — our `tlink` in production,
-Google's `libmosey` historically — needs those capabilities to drive `wonder.ko`, so it
-cannot be moved to the unprivileged half without giving up AWDL entirely. What the split still buys is real — a cpio or TLS bug is
-not a privileged compromise — but "the privileged half is 500 auditable lines" is
-true and incomplete: those lines are auditable in an hour and the blob sharing
-their address space is not auditable at all. It is confined to `tarishd`'s SELinux
-domain and reached through five FFI functions in one file, and that is the whole
-of the mitigation.
+That much is structural rather than a regression: the AWDL library needs those capabilities
+to drive `wonder.ko`, so it cannot be moved to the unprivileged half without giving up AWDL
+entirely.
 
-Replacing `libmosey` with an open implementation is the only thing that changes
-this, which is why the FFI is isolated to `src/mosey.rs`.
+**What changed is WHOSE library that is.** The shipping build loads `tlink`, which is ours:
+Apache-2.0, `forbid(unsafe_code)`, and fuzzed at 20M mutated frames with zero panics. So the
+sentence this section used to carry — "our code is not the risk in that process, `libmosey`
+is" — no longer describes what we ship. The frame parser in the privileged process is now
+auditable, and has been audited.
+
+The old caveat still applies **if you run the libmosey configuration**, which remains
+supported because the ABI was recovered from it and it is the reference for comparison.
+There, "the privileged half is 500 auditable lines" is true and incomplete: those lines are
+auditable in an hour and the blob sharing their address space is not auditable at all. It is
+confined to `tarishd`'s SELinux domain and reached through five FFI functions in one file,
+and that is the whole of the mitigation.
+
+That difference is the reason the FFI is isolated to `src/mosey.rs`: it is what let the
+implementation behind it be replaced without touching anything else.
 
 The client app talks to `tarishsharingd`, not to `tarishd`. The app never needs the
 privileged process, and `tarishd` publishes no binder service — which is why its

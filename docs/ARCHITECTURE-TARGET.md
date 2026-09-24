@@ -9,7 +9,7 @@ Nothing here is built. `docs/ARCHITECTURE.md` describes what exists today.
 
 | | privilege | does | parses hostile input |
 |---|---|---|---|
-| `tarishd` | `system`, `CAP_NET_ADMIN`, `CAP_NET_RAW` | libmosey FFI, nl80211, brings up `mosey0`, routes and fib rules | no, by design |
+| `tarishd` | `system`, `CAP_NET_ADMIN`, `CAP_NET_RAW` | the mosey FFI ABI (tlink ships; libmosey also provides it), nl80211, brings up the AWDL interface, routes and fib rules | no, by design |
 | `tarishsharingd` | uid 7500, no capabilities | AirDrop mDNS/TLS/HTTP/plist/cpio; Quick Share protocol; writes received files | everything |
 | `TarishApp` | **platform certificate, privileged** | BLE, Bluetooth sockets, UI, prompts | some |
 
@@ -35,7 +35,7 @@ above it is ordinary networking and framework API.
 
 `tarishd` reduces to:
 
-1. start and stop the AWDL session — libmosey FFI, nl80211 vendor commands
+1. start and stop the AWDL session — the mosey FFI ABI (tlink, or libmosey), nl80211 vendor commands
 2. bring up `mosey0`, install `fe80::/64` in its table and the **uid-scoped fib rule**,
    for the uid it reads from `SO_PEERCRED` on the control socket -- nothing hardcoded
 3. report the interface index and link-local address, because the index changes every

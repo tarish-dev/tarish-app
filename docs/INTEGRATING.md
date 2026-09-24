@@ -6,11 +6,29 @@ Pixel 10; none of it is GrapheneOS-specific.
 
 ## What tarishd needs from the platform
 
-**An AWDL library.** `libmosey_daemon_ffi.so` must be present and loadable.
-tarishd tries the plain soname first (so the dynamic linker's own search applies),
-then `/system_ext/lib64`, `/vendor/lib64`, `/system/lib64`, and honours
-`TARISH_MOSEY_LIB` as an override. **Shipping and pinning that library is the
-integrator's job, not the daemon's** — tarishd only requires that one is there.
+**An AWDL library exporting the `libmosey_daemon_ffi.so` soname.** Note the wording:
+what tarishd needs is the SONAME and its five FFI symbols (`mosey_start_5`, `stop`,
+`update`, `dump`, `reset`), not any particular implementation of them. The name is
+Google's, because the ABI was recovered from Google's blob, and it has stayed for
+compatibility. **It does not mean you must ship Google's code.**
+
+Two implementations provide it:
+
+| | what it is |
+|---|---|
+| **tlink** | ours, Apache-2.0, `tarish-link` / crate `tlink-mosey-shim`. No Google userspace |
+| **libmosey** | Google's blob out of the Pixel vendor image |
+
+tlink is what Tarish itself ships, and a device running it has **zero Google
+components in the AWDL path**. If your reason for using Tarish at all is not
+depending on Google's stack, this is the line where that is won or lost — so do not
+read the soname as a dependency on the vendor blob.
+
+Either way, tarishd tries the plain soname first (so the dynamic linker's own search
+applies), then `/system_ext/lib64`, `/vendor/lib64`, `/system/lib64`, and honours
+`TARISH_MOSEY_LIB` as an override. **Shipping and pinning whichever one you choose is
+the integrator's job, not the daemon's** — tarishd only requires that one is there,
+and deliberately does not care which.
 
 **A kernel driver.** `wonder.ko`, bound to the Wi-Fi driver. On Pixel 10 that is
 every model except the 10a, whose `bcmdhd4383` has no `wondertap` support at all.

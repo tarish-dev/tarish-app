@@ -100,18 +100,24 @@ the line count.
 | layer | source | notes |
 |---|---|---|
 | radio and MAC — `wonder.ko` | **vendor** | Google/Broadcom kernel module, already in the stock image. **Zero AWDL protocol strings in it** |
-| AWDL protocol — `libmosey_daemon_ffi.so` | **vendor** | election, sync, peer discovery. 51 protocol strings. This is what [`tarish-link`](https://github.com/tarish-dev/tarish-link) replaces |
-| IP on `mosey0` | open source | including the routing Android's fwmark model requires |
+| AWDL protocol — election, sync, peer discovery | **open source** | **[tarish-link](https://github.com/tarish-dev/tarish-link)** (`tlink`), which is what the build ships. Google's `libmosey_daemon_ffi.so` is still supported as an alternative and is what the ABI was recovered from |
+| IP on the AWDL interface | open source | including the routing Android's fwmark model requires |
 | mDNS, TLS, HTTP, Apple's plist dialect, cpio | **open source** | `tarishsharingd` |
 | share sheet, prompts, consent | **open source** | the app |
 
-Both vendor blobs **already ship in the Pixel vendor image** and run on a build with no
-Google packages, so using them adds nothing to the device that was not already there.
-Replacing the AWDL blob is a separate track, and it is underway:
-**[tarish-link](https://github.com/tarish-dev/tarish-link)** is an open AWDL
-implementation that already brings the radio up, wins Apple's master election and synchronises
-to Apple devices on a Pixel with no `libmosey` in the path. The reverse-engineering record is
-[docs/REVERSE-ENGINEERING.md](docs/REVERSE-ENGINEERING.md).
+**One vendor component remains, and it is the kernel MAC layer.** `wonder.ko` is silicon-tied
+— it carries a vermagic and a RANDSTRUCT seed, so it loads only into the exact kernel it was
+built against — and it is deliberately not reimplemented. It already ships in the Pixel
+vendor image and runs on a build with no Google packages, so using it adds nothing to the
+device that was not already there.
+
+The AWDL protocol layer above it is **no longer vendor**. `tarish-link` brings the radio up,
+wins Apple's master election, synchronises to Apple devices and carries real transfers, and
+it is what the shipping image loads — a device running this build has no Google userspace in
+the AWDL path at all. Both implementations export the same soname and the same five FFI
+symbols, so switching between them is one file; `libmosey` stays supported because the ABI
+was recovered from it and it remains the reference for comparison. The reverse-engineering
+record is [docs/REVERSE-ENGINEERING.md](docs/REVERSE-ENGINEERING.md).
 
 #### Quick Share
 
