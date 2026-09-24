@@ -256,6 +256,28 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 Log.i(TAG, "transport " + (up ? "up" : "down") + " — redrawing");
                 render();
             }
+            // FOLLOW THE KILL-SWITCH LIVE, rather than trusting the answer we got when we
+            // connected.
+            //
+            // Asking only on connect and on resume was not enough, and it produced exactly
+            // the bug it was meant to prevent. Two ways in: the person toggles "Block
+            // connections without VPN" while the app is open -- which is what testing this
+            // feature consists of -- or the app connects during boot, before tarishd has
+            // published tarish.awdl.lockdown, where isLockdownActive() fails closed to true.
+            // Either way the app cached "locked" and never asked again, so it went on
+            // demanding authentication with no kill-switch anywhere on the device.
+            //
+            // Cheap enough to do on the tick: the daemon answers from a property read, and
+            // this is the same binder channel the poll already uses.
+            boolean wasRequired = AuthWindow.lockRequired();
+            AuthWindow.refreshLockRequired(service);
+            if (wasRequired != AuthWindow.lockRequired()) {
+                Log.i(TAG, "kill-switch state changed — redrawing");
+                render();
+                main.postDelayed(this, POLL_MS);
+                return;
+            }
+
             // RELOCK ON EXPIRY, while the app is open and being looked at. Without this
             // the window ends silently and the screen keeps showing peers and the inbox
             // until something else happens to redraw -- which is precisely the state the
