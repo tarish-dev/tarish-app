@@ -137,6 +137,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * other state, so only the branch that OWNS the line may let the tick refine it.
      */
     private boolean heroReady;
+    /** A prompt is on screen. Guards against stacking a second BiometricPrompt. */
+    private boolean authPromptUp;
     /**
      * What the peer list currently shows.
      *
@@ -253,6 +255,16 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 lastTransportUp = up;
                 Log.i(TAG, "transport " + (up ? "up" : "down") + " — redrawing");
                 render();
+            }
+            // RELOCK ON EXPIRY, while the app is open and being looked at. Without this
+            // the window ends silently and the screen keeps showing peers and the inbox
+            // until something else happens to redraw -- which is precisely the state the
+            // lock exists to prevent.
+            if (!AuthWindow.isOpen()) {
+                Log.i(TAG, "authenticated window ended — relocking");
+                render();
+                main.postDelayed(this, POLL_MS);
+                return;
             }
             if (sendMode) {
                 refreshPeers();
@@ -615,6 +627,20 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             content.addView(buildNoCredentialCard());
             return;
         }
+        // TARISH IS LOCKED IN ITS OWN RIGHT.
+        //
+        // An unlocked phone is not an unlocked Tarish. The device credential says who owns
+        // the handset; it does not say the person holding it right now was meant to see
+        // what arrived, or to send anything from here. This app is a door onto other
+        // people's devices and onto files that landed on this one, so it locks separately
+        // and relocks when its window ends -- the same bargain a password manager makes.
+        //
+        // This is the FIRST thing render() decides after the credential check, so nothing
+        // below it can leak a peer name, a device name or an inbox entry to a glance.
+        if (!AuthWindow.isOpen()) {
+            content.addView(buildLockedCard());
+            return;
+        }
         if (service == null) {
             content.addView(buildNoDaemonCard());
             return;
@@ -673,6 +699,79 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
      * Re-checked on every render, so enrolling a credential and coming back lifts this with
      * no restart.
      */
+    /**
+     * The lock screen. Everything else in the app is behind it.
+     *
+     * Deliberately says almost nothing: no device name, no peer list, no "3 files waiting".
+     * A lock that advertises what it is protecting has given away the part that mattered to
+     * someone glancing at the screen.
+     */
+    private LinearLayout buildLockedCard() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER);
+        int p = Ui.dp(this, 28);
+        box.setPadding(p, Ui.dp(this, 72), p, p);
+
+        // No glyph: Glyph.Kind has no lock, and a wrong mark is worse than none on the one
+        // screen whose whole job is to say plainly that this is shut.
+        TextView title = Ui.text(this, "Tarish is locked", 24, Ui.textColor(this), true);
+        title.setGravity(Gravity.CENTER);
+        box.addView(title);
+
+        TextView why = Ui.text(this,
+                "Unlocking your phone does not unlock Tarish. Authenticate to share, and to "
+                        + "see what has arrived.",
+                14, Ui.textMuted(this), false);
+        why.setGravity(Gravity.CENTER);
+        why.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 26));
+        box.addView(why);
+
+        TextView action = Ui.text(this, "Unlock", 16, Ui.onAccent(this), true);
+        action.setGravity(Gravity.CENTER);
+        int ap = Ui.dp(this, 14);
+        action.setPadding(Ui.dp(this, 44), ap, Ui.dp(this, 44), ap);
+        action.setBackground(Ui.card(this, Ui.accent(this), Ui.accent(this), 14));
+        action.setOnClickListener(v -> unlock("tapped"));
+        box.addView(action);
+
+        TextView note = Ui.text(this,
+                "Stays unlocked for " + (AuthWindow.WINDOW_SECONDS / 60)
+                        + " minutes, and relocks when you leave.",
+                12, Ui.textFaint(this), false);
+        note.setGravity(Gravity.CENTER);
+        note.setPadding(0, Ui.dp(this, 20), 0, 0);
+        box.addView(note);
+        return box;
+    }
+
+    /**
+     * Authenticate and open the window.
+     *
+     * One prompt unlocks the app AND permits the lockdown exemption, because they are the
+     * same claim: a person is here and said yes. Splitting them would mean two prompts for
+     * one decision, and the second would be asking about something most people have no way
+     * to evaluate.
+     *
+     * Not auto-fired from onResume. A prompt that appears by itself trains people to
+     * approve prompts, and it also fires when the activity is merely being recreated --
+     * a rotation should not ask anyone for a fingerprint.
+     */
+    private void unlock(String why) {
+        if (authPromptUp) {
+            return;   // one at a time; a second Builder would stack a second dialog
+        }
+        authPromptUp = true;
+        Log.i(TAG, "unlock requested (" + why + ")");
+        AuthWindow.request(this, service, ok -> {
+            authPromptUp = false;
+            if (ok) {
+                Log.i(TAG, "unlocked for " + AuthWindow.WINDOW_SECONDS + "s");
+            }
+            render();
+        });
+    }
+
     private LinearLayout buildNoCredentialCard() {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -1216,7 +1315,13 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 setHeroTitle("Not receiving");
                 setIdentityState("Tap to unlock receiving for 10 minutes", false);
                 identity.setClickable(true);
-                identity.setOnClickListener(v -> openWindow("re-enable"));
+                identity.setOnClickListener(v -> {
+                    // No second prompt. Unlocking the app already authenticated this
+                    // person for this window; becoming discoverable is a choice within it,
+                    // not a new claim about who is holding the phone.
+                    setDiscoverable(true, "re-enable");
+                    render();
+                });
             } else if (!discoverable && !sendMode && qsReceive) {
                 // THIS LINE USED TO LIE.
                 //
@@ -2608,36 +2713,6 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 // are the two questions this line exists to answer, and the name is the
                 // one a person cannot work out -- it may be a configured name, not the model.
                 "%s · %d:%02d left", deviceName(), s / 60, s % 60));
-    }
-
-    /**
-     * Open a sharing window: authenticate first, then become discoverable AND take the VPN
-     * lockdown exemption for the same period.
-     *
-     * ONE ACT, ONE WINDOW. Visibility and the exemption used to be independent -- the first
-     * was a ten-minute timer, the second lasted as long as AirDrop was on. Tying them to the
-     * same authenticated period is what the operator asked for ("authentication will be
-     * required for send and receive") and it is also the only version that is explicable:
-     * "you are sharing for the next ten minutes" is one sentence, where "you are visible for
-     * ten minutes and separately exempt from the VPN indefinitely" is two and the second one
-     * is the alarming half.
-     *
-     * If authentication is declined nothing changes -- not discoverable, not exempt. There is
-     * no partial state to reason about.
-     *
-     * With no VPN kill-switch in force the exemption half is a no-op: the routing rule moves
-     * from 15500 to 13500 and nothing was prohibiting it at either. So this costs one prompt
-     * and buys, on an ordinary device, exactly the visibility window it always had.
-     */
-    private void openWindow(String why) {
-        AuthWindow.request(this, service, ok -> {
-            if (ok) {
-                setDiscoverable(true, why);
-            }
-            // Render either way: on success to show the countdown, on refusal so the card
-            // stops looking like it is waiting for something.
-            render();
-        });
     }
 
     private void setDiscoverable(boolean visible, String why) {
