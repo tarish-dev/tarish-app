@@ -18,31 +18,6 @@ because the file used to lead with a blocker that had been fixed for weeks; it t
 another stretch leading with "the payload runs over Bluetooth, and it should not", which had
 also been fixed. **Move a section to Done in the same change that closes it**, not later.
 
-### DONE — Apple notes unpack into text and audio, verified on hardware
-
-`AppleNote` + `FileCollector.unpackAppleNote`, tested 2026-09-12 on blazer with a real
-audio note from an iPhone. One received file became four:
-
-```
-تجرّبه بس-1.notesairdropdocument   82424   original, kept
-تجرّبه بس-1.txt                        70   UTF-8 BOM verified, both Arabic lines intact
-تجرّبه بس-1 (1).m4a                 38747   valid M4A, BYTE-IDENTICAL to the reference
-تجرّبه بس-1 (2).m4a                 38638   valid M4A
-```
-
-The extracted audio was pulled off the device and compared with the Python prototype's
-output: identical, and `file(1)` calls it `ISO Media, Apple iTunes ALAC/AAC-LC (.M4A)`. So
-the Java port is provably correct rather than merely plausible — which is why the algorithm
-was prototyped against real captures first and ported second.
-
-The `.txt` begins `ef bb bf` as intended.
-
-**Still unverified:** that Android's media player actually plays the extracted `.m4a` when
-tapped. Everything upstream of that is confirmed.
-
-**Next in this area:** text to PDF via `PdfDocument` + `StaticLayout` — see the design note
-above, and do not hand-roll Arabic shaping.
-
 ### An audio note is a Notes protobuf with complete M4A files inside it
 
 **Measured 2026-09-12, iPhone -> blazer.** A voice recording made *inside* Apple Notes does
@@ -390,10 +365,35 @@ service call dev.tarish.ITarishService/default 13
 If the daemon logs on that, the daemon is fine and the app is sending something else.
 If it does not, the fault is in the daemon's handler.
 
-### Sending does not find peers: we hear their questions, never their answers
+### Sending does not find peers — THE PREMISE IN THIS HEADING IS WRONG
 
-**Top priority.** Reported by multiple users as "sending is unreliable, receiving is
-good", and reproduced on mustang against a MacBook in Everyone mode with awdl0 up.
+**We do hear their answers.** Measured 2026-09-24 with a daemon built to log every arriving
+record, which is a thing this module had never done — it logged discovered/lost and nothing
+else, so the log could not distinguish "the announcement never came" from "it came and we
+dropped the peer anyway". With that logging in place, a Mac's records arrive **every one to
+three seconds, continuously**, TTL 4500:
+
+```
+rx 6 record(s): ["_airdrop/12/ttl=4500", "a3841c245bc2/16/ttl=4500",
+                 "a3841c245bc2/33/ttl=4500", "c6ec8ec0…/28/ttl=4500", …]
+```
+
+So the SRV arrives too, and an earlier reading of "port 0, we never get the SRV" was a
+sampling artifact, not a dropped record.
+
+**What is actually wrong is that we delete peers.** Six measured lifetimes — 45.3, 45.9,
+60.6, 61.5, 62.5, 87.8 seconds — land exactly on `expire(45)` and `expire(60)` in the
+daemon. Peers dying on OUR constants rather than at random intervals is proof they had not
+gone anywhere. The same Mac was seen lost and rediscovered **seven seconds apart**.
+
+A fix shipped — `dns::Record` parsed the TTL and threw it away, so peers now expire on the
+TTL they advertise — but **the mechanism is not confirmed and this should not be read as
+closed**: records arriving every 1–3s should have kept `last_seen` fresh and made
+`expire(45)` unreachable, and it demonstrably fired anyway. That contradiction needs one run
+with record-arrival and peer-lost on the same timeline.
+
+*Original analysis below, kept for the measurements in it. Its conclusion — that answers
+never arrive — is now known to be wrong.*
 
 Reproduced with the radio verified up for the whole window, sampled every 15s, so
 this is NOT the radio gate and NOT the device dozing — both of which confounded
@@ -622,18 +622,27 @@ exclusive while sharing and returns afterwards. The band refusal already does th
 radiotap path needs the equivalent.
 
 
-### Always-on VPN lockdown breaks peer-to-peer, and should not just fail silently
+### Always-on VPN lockdown — RESOLVED, and the blocking question was answered
 
-**Priority: first.** A project requirement. **The mechanism is now designed — see
-docs/POLICY.md.** Session-based rather than per-transfer, because discovery is
-continuous and cannot be authorised as an event.
+**The measurement this was blocked on has been made, and the answer was no.** uid 7500
+never carries `LOCKDOWN_VPN_MATCH`: `BpfNetMaps.updateUidLockdownRule()` derives that bit
+from `intersectUids(vpnRanges, mAllApps)`, a set built from PACKAGES, and a native AID has
+no package. So the whole BPF line of reasoning — including the patch written against it —
+was a dead end and is a no-op.
 
-**Blocked on one measurement**, which decides whether any of it is needed: does uid
-7500 ever carry `LOCKDOWN_VPN_MATCH`? Enable lockdown, read `dumpsys connectivity
-trafficcontroller`. The bpf program exempts `is_system_uid` (uid < 10000) from the
-general lockdown rules — a WIDER exemption than the local-network gate's
-`is_system_or_root` — so we may be exempt already, in which case the work is to
-honour lockdown voluntarily rather than to bypass it.
+**The real mechanism is policy routing.** The block is the `ip rule` at priority 14000
+(`PROHIBIT_NON_VPN`); the fix is our `tlink0` rule sitting above it. Shipped and verified on
+hardware, enforcing, with the exemption's bound measured rather than argued.
+
+Full record, the priority scheme, the five scopings, the authenticated window and the
+keep-unlocked heartbeat: **grapheneos `docs/VPN-LOCKDOWN.md`**.
+
+Still open in this area, and tracked there rather than here: the app cannot yet detect that
+lockdown is active, so the UI cannot say so truthfully; and the authenticated-window work
+compiles but is largely untested on hardware.
+
+*Everything below this line is the original analysis, kept because the reasoning is sound
+even where the conclusion was superseded.*
 
 Android's *Block connections without VPN* (always-on VPN lockdown) is a good setting
 and enterprises rightly turn it on. It also breaks every peer-to-peer transfer that
@@ -850,6 +859,32 @@ listing a device that will refuse.
       See [REVERSE-ENGINEERING.md](REVERSE-ENGINEERING.md).
 
 ## Done
+
+### Apple notes unpack into text and audio — DONE, verified on hardware
+
+`AppleNote` + `FileCollector.unpackAppleNote`, tested 2026-09-12 on blazer with a real
+audio note from an iPhone. One received file became four:
+
+```
+تجرّبه بس-1.notesairdropdocument   82424   original, kept
+تجرّبه بس-1.txt                        70   UTF-8 BOM verified, both Arabic lines intact
+تجرّبه بس-1 (1).m4a                 38747   valid M4A, BYTE-IDENTICAL to the reference
+تجرّبه بس-1 (2).m4a                 38638   valid M4A
+```
+
+The extracted audio was pulled off the device and compared with the Python prototype's
+output: identical, and `file(1)` calls it `ISO Media, Apple iTunes ALAC/AAC-LC (.M4A)`. So
+the Java port is provably correct rather than merely plausible — which is why the algorithm
+was prototyped against real captures first and ported second.
+
+The `.txt` begins `ef bb bf` as intended.
+
+**Still unverified:** that Android's media player actually plays the extracted `.m4a` when
+tapped. Everything upstream of that is confirmed.
+
+**Next in this area:** text to PDF via `PdfDocument` + `StaticLayout` — see the design note
+above, and do not hand-roll Arabic shaping.
+
 
 Quick Share is finished as a transport: bidirectional, to Windows and to stock Android,
 with and without a shared network.
