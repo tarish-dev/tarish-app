@@ -39,6 +39,12 @@
          granted at install; the device's own haptic setting still governs whether it fires. -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Authenticating the person before a sharing window opens. USE_BIOMETRIC covers
+         BiometricManager.canAuthenticate and BiometricPrompt, including the
+         DEVICE_CREDENTIAL path: a PIN or password still goes through the same service, so
+         this is required even on a device with no fingerprint enrolled. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />

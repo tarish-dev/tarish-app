@@ -63,15 +63,41 @@ final class AuthWindow {
         return left > 0 ? left : 0L;
     }
 
-    /** Is there any way for this person to authenticate at all? */
+    /**
+     * Is there any way for this person to authenticate at all?
+     *
+     * THIS RUNS FROM onCreate AND MUST NOT THROW. It shipped once without USE_BIOMETRIC in
+     * the manifest and took the whole app down before it drew a frame:
+     *
+     *   SecurityException: Must have USE_BIOMETRIC permission
+     *     at AuthWindow.canAuthenticate -> MainActivity.render -> MainActivity.onCreate
+     *
+     * The permission is there now, so the catch is a net rather than the fix. It is worth
+     * having anyway: the same rule the rest of this app follows is that a lifecycle callback
+     * which throws kills the process, and a security CHECK that bricks the app is a worse
+     * outcome than the thing it was checking for.
+     *
+     * ON ERROR IT RETURNS TRUE, which looks like the wrong direction and is not. `true` here
+     * means only "do not put up the blocking screen" -- it does not grant anything. The
+     * window still cannot open without a real prompt succeeding, so an exception costs the
+     * BLOCK, never the exemption. Failing the other way would make an unrelated framework
+     * fault indistinguishable from "you have no PIN" and leave the app permanently unusable
+     * with no way for the person to act on it.
+     */
     static boolean canAuthenticate(Activity a) {
-        BiometricManager bm = a.getSystemService(BiometricManager.class);
-        if (bm == null) {
-            return false;
+        try {
+            BiometricManager bm = a.getSystemService(BiometricManager.class);
+            if (bm == null) {
+                return false;
+            }
+            int r = bm.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK
+                    | BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+            return r == BiometricManager.BIOMETRIC_SUCCESS;
+        } catch (RuntimeException e) {
+            Log.e(TAG, "cannot determine whether authentication is available — "
+                    + "not blocking the app, but a window will still need a real prompt", e);
+            return true;
         }
-        int r = bm.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK
-                | BiometricManager.Authenticators.DEVICE_CREDENTIAL);
-        return r == BiometricManager.BIOMETRIC_SUCCESS;
     }
 
     /**
