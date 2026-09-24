@@ -15,7 +15,7 @@ not have to be a permanently-running foreground service.
 | `tarishd` | holds the AWDL link. `CAP_NET_ADMIN`, `CAP_NET_RAW`, uid `system` |
 | `tarishsharingd` | parses everything a stranger sends. **No capabilities**, uid 7500 |
 | `TarishApp` | the share sheet, consent, and the framework radio work. Privileged, in `system_ext/priv-app` |
-| SELinux policy | two domains, plus file/service/property contexts |
+| SELinux policy | **three** domains — `tarishd`, `tarishsharingd`, `tarish_app` — plus file/service/property contexts |
 | AID 7500 | `system_ext_tarish`, so the daemon owns its own files |
 | one framework patch | `packages/modules/Connectivity` — see step 7 |
 
@@ -23,14 +23,24 @@ The split is the security design: the process holding `CAP_NET_ADMIN` never pars
 input, and the process parsing remote input holds nothing. See
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
+The app has its own domain rather than sharing `platform_app` with every platform-signed app
+on the device, and both daemons' rules were derived from `auditallow` measurement of what they
+actually exercise rather than from the `net_domain()` macro. `tarishsharingd` consequently has
+no `rawip_socket`, no `icmp_socket` and no `netlink_route_socket` at all.
+
 ## Before you start
 
 - A build tree you can modify and rebuild.
 - A device you can flash. **A `user` build will not work for development** — you cannot
   read the daemon's logs or push a rebuilt binary. Use `userdebug`.
-- The AWDL half additionally needs a Pixel with Google's `wonder.ko` and
-  `libmosey_daemon_ffi.so` in its vendor image. Quick Share does **not** — it is plain
-  Wi-Fi and works on any device.
+- The AWDL half additionally needs a Pixel with Google's `wonder.ko` — the kernel MAC
+  module, which is silicon-tied and is not reimplemented — plus **some** library providing
+  the `libmosey_daemon_ffi.so` ABI. That is either
+  [tlink](https://github.com/tarish-dev/tarish-link), which is ours and open and is what
+  production ships, or Google's `libmosey` from the vendor image, which is the reference and
+  fallback. **Google's library is not a requirement**; this line used to say it was. See
+  [MOSEY-FFI.md](MOSEY-FFI.md).
+- Quick Share needs neither — it is plain Wi-Fi and works on any device.
 
 ---
 
@@ -161,6 +171,23 @@ directory is adevtool output and is regenerated; the policy will vanish.
 cd packages/modules/Connectivity
 git apply /path/to/vendor/tarish/patches/packages_modules_Connectivity/*.patch
 ```
+
+> **That glob applies TWO patches, and only the first one does anything.** Worth knowing
+> before you read them, because the second is named
+> `0002-exempt-tarish-daemon-local-traffic-from-vpn-lockdown.patch` and anyone reviewing this
+> tree will stop on it — a patch that exempts a daemon from a VPN kill-switch is exactly what
+> a review is looking for.
+>
+> **It is a no-op.** It keys on the BPF bit `LOCKDOWN_VPN_MATCH`, which `BpfNetMaps` derives
+> from `intersectUids(vpnRanges, mAllApps)` — a set built out of *packages*. uid 7500 is a
+> native AID with no package, for the same reason the first patch is needed at all, so it
+> never carries the bit and the code path never fires. It is retained pending a decision, not
+> because it works.
+>
+> Sharing under a kill-switch is done by **policy routing** instead, in the daemon rather than
+> in the platform: an `ip rule` for the AWDL interface, scoped to uid 7500, against a table
+> holding one link-local route and no IPv4. It cannot reach the internet, the LAN or the VPN's
+> own subnet.
 
 **Why it is required.** Since Android B, local network access is gated by a BPF map.
 `is_local_network_access_blocked()` exempts only uid 0 and uid 1000; every other uid needs
