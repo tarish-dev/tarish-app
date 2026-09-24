@@ -129,8 +129,13 @@ final class AuthWindow {
             return;
         }
         BiometricPrompt prompt = new BiometricPrompt.Builder(a)
-                .setTitle("VPN lockdown is active")
-                .setSubtitle("Authenticate to allow sharing over the local link")
+                // NOT "VPN lockdown is active" -- that was the title and it is a claim this
+                // app cannot make. always_on_vpn_lockdown reads null while lockdown is in
+                // force, so on a device with no VPN at all the old title simply lied. The
+                // subtitle says what unlocking DOES, which is true either way.
+                .setTitle("Unlock Tarish")
+                .setSubtitle("Authenticate to share, and to allow the direct link under a "
+                        + "VPN kill-switch")
                 .setDescription(
                         "For the next " + (WINDOW_SECONDS / 60) + " minutes, Tarish may reach "
                         + "devices on the direct link only. Nothing else is exempted from the "

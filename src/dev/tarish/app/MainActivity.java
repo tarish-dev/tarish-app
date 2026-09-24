@@ -757,9 +757,20 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         title.setGravity(Gravity.CENTER);
         box.addView(title);
 
+        // SAY WHY, and say it here rather than only in the prompt. The old copy said what
+        // happened ("unlocking your phone does not unlock Tarish") but never why, so the lock
+        // read as an arbitrary obstacle -- worse when the app had just relocked itself.
+        //
+        // Phrased conditionally ("while a VPN kill-switch is on"), NOT as a claim that one is
+        // active. The app cannot tell: Settings.Global.always_on_vpn_lockdown reads null while
+        // lockdown is in force, measured on blazer, and only `ip -6 rule` gives a real answer,
+        // which an app cannot run. So this explains what unlocking permits without asserting
+        // anything about this device's current state.
         TextView why = Ui.text(this,
-                "Unlocking your phone does not unlock Tarish. Authenticate to share, and to "
-                        + "see what has arrived.",
+                "Unlocking your phone does not unlock Tarish.\n\n"
+                        + "Unlocking also lets Tarish reach devices on the direct link while "
+                        + "a VPN kill-switch is on. That permission lasts only while you are "
+                        + "here, so Tarish relocks when you leave.",
                 14, Ui.textMuted(this), false);
         why.setGravity(Gravity.CENTER);
         why.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 26));
