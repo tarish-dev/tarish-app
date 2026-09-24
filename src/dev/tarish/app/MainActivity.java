@@ -609,6 +609,12 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // no error -- indistinguishable from nobody being nearby. The app is the visible
         // half of something that mostly is not an app, and when the other half is absent
         // that is the only thing worth saying.
+        // NO CREDENTIAL, NO APP. Checked before the daemon, because it is the more
+        // actionable of the two and does not depend on the daemon being up.
+        if (!AuthWindow.canAuthenticate(this)) {
+            content.addView(buildNoCredentialCard());
+            return;
+        }
         if (service == null) {
             content.addView(buildNoDaemonCard());
             return;
@@ -651,6 +657,78 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     }
 
     /** Shown when the daemon is not on this device. */
+    /**
+     * No device credential, no Tarish.
+     *
+     * WHY THE WHOLE APP AND NOT JUST THE LOCKDOWN FEATURE. The authenticated window is the
+     * thing that makes the VPN-lockdown exemption acceptable: the kill-switch holds unless a
+     * person proves they are present. On a device with no PIN, pattern, password or
+     * biometric there is no such proof available, so that guarantee cannot be offered at
+     * all — and a device with no screen lock has no custody story for received files either.
+     * Shipping sharing with the promise quietly absent is worse than not shipping it.
+     *
+     * It is also the honest reading of "authentication required": a control that silently
+     * degrades to nothing when the user has not set a credential is not a control.
+     *
+     * Re-checked on every render, so enrolling a credential and coming back lifts this with
+     * no restart.
+     */
+    private LinearLayout buildNoCredentialCard() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER);
+        int p = Ui.dp(this, 28);
+        box.setPadding(p, Ui.dp(this, 56), p, p);
+
+        TextView title = Ui.text(this, "Set a screen lock to use Tarish", 22, Ui.textColor(this), true);
+        title.setGravity(Gravity.CENTER);
+        box.addView(title);
+
+        TextView why = Ui.text(this,
+                "Tarish can let sharing work while a VPN kill-switch is active, but only for "
+                        + "a few minutes at a time and only when someone authenticates first. "
+                        + "That is what keeps the exemption honest.\n\n"
+                        + "This device has no PIN, pattern, password or biometric enrolled, so "
+                        + "there is no way to authenticate \u2014 and no way to make that "
+                        + "promise. Received files would have no lock in front of them either.",
+                14, Ui.textMuted(this), false);
+        why.setGravity(Gravity.CENTER);
+        why.setPadding(0, Ui.dp(this, 16), 0, Ui.dp(this, 24));
+        box.addView(why);
+
+        TextView action = Ui.text(this, "Set a screen lock", 16, Ui.onAccent(this), true);
+        action.setGravity(Gravity.CENTER);
+        int ap = Ui.dp(this, 14);
+        action.setPadding(Ui.dp(this, 28), ap, Ui.dp(this, 28), ap);
+        action.setBackground(Ui.card(this, Ui.accent(this), Ui.accent(this), 14));
+        action.setOnClickListener(v -> {
+            // ACTION_SET_NEW_PASSWORD goes straight to enrolling one, rather than dropping
+            // the person in the security menu to find it. Literal rather than the
+            // DevicePolicyManager constant so this does not depend on that import.
+            Intent i = new Intent("android.app.action.SET_NEW_PASSWORD");
+            try {
+                startActivity(i);
+            } catch (Exception e) {
+                // Fall back to the security screen if the direct action is unavailable.
+                Log.w(TAG, "SET_NEW_PASSWORD unavailable, opening security settings", e);
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS));
+                } catch (Exception e2) {
+                    Log.w(TAG, "could not open security settings either", e2);
+                }
+            }
+        });
+        box.addView(action);
+
+        TextView after = Ui.text(this,
+                "Come back here once it is set \u2014 nothing else is needed.",
+                12, Ui.textFaint(this), false);
+        after.setGravity(Gravity.CENTER);
+        after.setPadding(0, Ui.dp(this, 18), 0, 0);
+        box.addView(after);
+        return box;
+    }
+
     private LinearLayout buildNoDaemonCard() {
         LinearLayout card = Ui.cardBox(this);
         int p = Ui.dp(this, 16);
