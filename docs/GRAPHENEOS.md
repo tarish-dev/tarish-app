@@ -172,22 +172,21 @@ cd packages/modules/Connectivity
 git apply /path/to/vendor/tarish/patches/packages_modules_Connectivity/*.patch
 ```
 
-> **That glob applies TWO patches, and only the first one does anything.** Worth knowing
-> before you read them, because the second is named
-> `0002-exempt-tarish-daemon-local-traffic-from-vpn-lockdown.patch` and anyone reviewing this
-> tree will stop on it — a patch that exempts a daemon from a VPN kill-switch is exactly what
-> a review is looking for.
+> **The glob matches one patch — `0001` — and that is the whole set this repository ships.**
 >
-> **It is a no-op.** It keys on the BPF bit `LOCKDOWN_VPN_MATCH`, which `BpfNetMaps` derives
-> from `intersectUids(vpnRanges, mAllApps)` — a set built out of *packages*. uid 7500 is a
-> native AID with no package, for the same reason the first patch is needed at all, so it
-> never carries the bit and the code path never fires. It is retained pending a decision, not
-> because it works.
+> If you have seen a second one named
+> `0002-exempt-tarish-daemon-local-traffic-from-vpn-lockdown.patch`, it is not here. It exists
+> only in the private OS integration tree, and it is worth saying plainly what it does, because
+> the filename is exactly what a reviewer stops on: **nothing.** It keys on the BPF bit
+> `LOCKDOWN_VPN_MATCH`, which `BpfNetMaps` derives from `intersectUids(vpnRanges, mAllApps)` —
+> a set built out of *packages*. uid 7500 is a native AID with no package, for the same reason
+> `0001` is needed at all, so it never carries the bit and the code path never fires.
 >
-> Sharing under a kill-switch is done by **policy routing** instead, in the daemon rather than
-> in the platform: an `ip rule` for the AWDL interface, scoped to uid 7500, against a table
-> holding one link-local route and no IPv4. It cannot reach the internet, the LAN or the VPN's
-> own subnet.
+> Sharing under a VPN kill-switch is done by **policy routing** instead, in the daemon rather
+> than in the platform: an `ip rule` for the AWDL interface, scoped to uid 7500, against a
+> table holding one link-local route and no IPv4. It cannot reach the internet, the LAN or the
+> VPN's own subnet. No part of that needs a framework patch, which is why integrating Tarish
+> does not hand you one.
 
 **Why it is required.** Since Android B, local network access is gated by a BPF map.
 `is_local_network_access_blocked()` exempts only uid 0 and uid 1000; every other uid needs
