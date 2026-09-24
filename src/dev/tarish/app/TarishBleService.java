@@ -323,6 +323,44 @@ public final class TarishBleService extends Service {
         return Daemon.get();
     }
 
+    /**
+     * Turn the beacon on or off without stopping the service.
+     *
+     * THE VISIBILITY WINDOW HAS TO REACH BLE, and gating the whole service would be wrong:
+     * this one object both ADVERTISES (which the window governs) and SCANS (which it does
+     * not -- scanning is how SENDING finds peers, and a sender is not making itself
+     * visible). Stopping the service to become invisible would take send-side discovery
+     * with it.
+     *
+     * So only the advertisement is gated. Without this the window was a half-measure twice
+     * over: the daemon stopped answering AirDrop and, after the LAN responder was fixed,
+     * stopped answering Quick Share over mDNS -- while this beacon carried on telling every
+     * Apple device in range that the phone was here.
+     */
+    static final String ACTION_VISIBILITY = "dev.tarish.app.VISIBILITY";
+    static final String EXTRA_VISIBLE = "visible";
+
+    /** Start or stop just the advertisement, leaving scanning and RFCOMM alone. */
+    private void setBeaconVisible(boolean visible) {
+        if (visible) {
+            if (!advertising) {
+                startAdvertising();
+            }
+            return;
+        }
+        if (advertising && advertiser != null) {
+            try {
+                advertiser.stopAdvertising(advertiseCallback);
+            } catch (SecurityException | RuntimeException e) {
+                // Same rule as everywhere else here: a lifecycle callback that throws kills
+                // the process, and a beacon we failed to stop is not worth that.
+                Log.w(TAG, "could not stop the beacon", e);
+            }
+            advertising = false;
+            Log.i(TAG, "beacon stopped — no longer discoverable");
+        }
+    }
+
     private void startAdvertising() {
         if (advertiser == null) {
             Log.w(TAG, "no LE advertiser — radio does not support advertising");
@@ -489,6 +527,14 @@ public final class TarishBleService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // A VISIBILITY CHANGE IS NOT A RESTART. It must flip the advertisement and nothing
+        // else: re-acquiring the radio would restart scanning and the RFCOMM listener, and
+        // going invisible is not a reason to disturb either -- scanning is how SENDING
+        // finds peers, and a sender is not making itself visible.
+        if (intent != null && ACTION_VISIBILITY.equals(intent.getAction())) {
+            setBeaconVisible(intent.getBooleanExtra(EXTRA_VISIBLE, false));
+            return START_NOT_STICKY;
+        }
         // Re-assert on every start, not just the first. An already-running service
         // otherwise ignores startService entirely, so there was no way to recover a
         // dead beacon short of killing the app.

@@ -2531,16 +2531,35 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // the caller below and triggers a pointless rebind. Turning visibility OFF is
         // never gated: policy restricts sharing, never the ability to stop.
         //
-        // policy.airdrop, and NOT allowed(...), on purpose: setDiscoverable is AirDrop
-        // visibility specifically -- it governs the mDNS advertisement and the httpd that
-        // answers /Discover, and the daemon gates it on the AirDrop mode alone. Quick
-        // Share is advertised over BLE by a different component entirely. This is the one
-        // place in this file where reading one protocol's mode is the correct thing.
+        // policy.airdrop, and NOT allowed(...), on purpose: the POLICY GATE below is
+        // AirDrop-specific -- whether this device may be an AirDrop receiver at all.
+        //
+        // The VISIBILITY it then sets is not. It used to be: this call governed AirDrop's
+        // mDNS advertisement and the httpd answering /Discover, while Quick Share went on
+        // advertising over LAN mDNS from the daemon and over BLE from TarishBleService,
+        // neither of which consulted it. So "not discoverable" covered one protocol of two
+        // and the UI said something untrue. Both are now driven from here.
         if (visible && policy != null && !PolicyStore.allowsReceive(policy.airdrop)) {
             Log.i(TAG, "setDiscoverable(true) skipped from " + why + " — policy denies receive");
             return;
         }
         Log.i(TAG, "setDiscoverable(" + visible + ") from " + why + " sendMode=" + sendMode);
+
+        // THE BLE BEACON IS OURS, NOT THE DAEMON'S, so it has to be told separately.
+        // Before the daemon call and outside its null check on purpose: the beacon does not
+        // depend on the binder being up, and going invisible must still work when the
+        // daemon is being rebound. Only the advertisement is affected -- scanning keeps
+        // running, because that is how SENDING finds peers and a sender is not making
+        // itself visible.
+        try {
+            startService(new Intent(this, TarishBleService.class)
+                    .setAction(TarishBleService.ACTION_VISIBILITY)
+                    .putExtra(TarishBleService.EXTRA_VISIBLE, visible));
+        } catch (IllegalStateException e) {
+            // Same background-start rule as startBeacon(): refusing is correct in that
+            // state, and an exception escaping here would kill the app.
+            Log.w(TAG, "could not reach the beacon to set visibility", e);
+        }
         if (service == null) {
             setIdentityState("tarish service unavailable", false);
             return;
