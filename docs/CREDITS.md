@@ -55,13 +55,8 @@ is theirs first.
 
 <https://github.com/bodaay/GoOpenDrop>
 
-A Go implementation of the AirDrop protocol layer, referenced for the plist
-dialect, cpio framing and the HTTPS exchange.
-
-
-## GoOpenDrop — the author
-
-An earlier from-scratch AirDrop implementation in Go, including its BLE layer.
+An earlier from-scratch AirDrop implementation in Go, by this project's author. Referenced
+for the plist dialect, cpio framing and the HTTPS exchange, and for its BLE layer.
 
 Tarish's AirDrop BLE advertisement layout comes from that work: the Apple
 manufacturer-data framing, the AirDrop message type, and the four two-byte truncated
@@ -71,3 +66,5 @@ established there by reverse-engineering against real Apple devices.
 Reimplemented here rather than reused, at the author's request. The value taken is the
 description of how AirDrop works, which was the part that could not have been guessed
 — and the previous attempt at guessing a wire format in this project was wrong twice.
+
+*(This entry was two separate sections with the same heading, describing one project.)*

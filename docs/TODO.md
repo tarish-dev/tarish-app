@@ -1214,7 +1214,7 @@ with no foreign-implementation vector.
 **Closed.** Kept because the wrong turns in it are the useful part; the outcome is
 in the summary at the top of the Done section.
 
-`libtarish_protocol` is complete and covered by 127 tests, including one that runs a whole
+`libtarish_protocol` is complete and covered by 127 tests at the time, including one that runs a whole
 share between two peers in-process — UKEY2 handshake, key derivation, encrypted channel,
 paired-key exchange, introduction, acceptance, a 300 KB file in 64 KiB chunks,
 reassembled and compared byte for byte. `quickshare::connection::serve` is the I/O loop

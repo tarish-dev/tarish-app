@@ -71,7 +71,7 @@ file currently sits somewhere no file manager can open until the app is foregrou
 
 ## The core stays Rust
 
-`libtarish_protocol` is 193 tests and deliberately Android-free, which is why it is testable
+`libtarish_protocol` is 204 tests and deliberately Android-free, which is why it is testable
 on the build host with no device. **That is the asset**, and a rewrite in Kotlin would
 reproduce the code and discard the evidence: the PIN derivation pinned against foreign
 vectors, per-packet versus cumulative acknowledgements, the `0xFF -> "0001"` sign-extension
