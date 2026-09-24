@@ -351,7 +351,9 @@ public final class TarishBleService extends Service {
         if (advertising && advertiser != null) {
             try {
                 advertiser.stopAdvertising(advertiseCallback);
-            } catch (SecurityException | RuntimeException e) {
+            } catch (RuntimeException e) {
+                // RuntimeException alone: SecurityException extends it, and Java rejects a
+                // multi-catch whose alternatives are related by subclassing.
                 // Same rule as everywhere else here: a lifecycle callback that throws kills
                 // the process, and a beacon we failed to stop is not worth that.
                 Log.w(TAG, "could not stop the beacon", e);
