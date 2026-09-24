@@ -212,6 +212,31 @@ enabling "Block connections without VPN" believes traffic is blocked; a daemon t
 keeps advertising and answering mDNS because it happens to have no package is not
 something to quietly benefit from.
 
+> **CORRECTED 2026-09-24. Two claims below this point were wrong, and both were the kind an
+> audit would take at face value.**
+>
+> **"No framework patch, and none should be written."** Two were. `0001-grant-tarish-daemon-
+> local-network-access` is REQUIRED — since Android B only uid 0 and 1000 may reach the local
+> network, and a native AID can never earn the bit because `PermissionMonitor` derives it
+> from packages. `0002-exempt-tarish-daemon-local-traffic-from-vpn-lockdown` was also
+> written, and is a **no-op**: it keys on `LOCKDOWN_VPN_MATCH`, which uid 7500 never carries,
+> for the same package-vs-AID reason.
+>
+> **"The app reads `Settings.Secure.always_on_vpn_lockdown`."** It reads **null** while
+> lockdown is in force — measured on blazer. A VPN app can put the device in lockdown by
+> another path, so the setting is not a reliable signal for anyone, platform-signed or not.
+> **The app still cannot detect lockdown**, and the UI therefore cannot truthfully say it is
+> active. Checking the `ip -6 rule` output for `prohibit` is the only reliable test, and an
+> app cannot run it.
+>
+> What actually makes sharing work under a kill-switch is **policy routing** — an `ip rule`
+> for `tlink0` above `PROHIBIT_NON_VPN`. Authoritative account, including the authenticated
+> window and the keep-unlocked heartbeat: grapheneos `docs/VPN-LOCKDOWN.md`.
+>
+> The original text is kept below because its REASONING — that a hole we did not ask for is
+> not something to quietly benefit from — is the argument the implemented design still rests
+> on.
+
 So: **no framework patch, and none should be written.** Tarish detects lockdown and
 disables itself, and the session model below is what re-enables it after
 authentication. Everything is enforced in our own code, which also means it is
@@ -235,6 +260,13 @@ DISABLED ──authenticate──> ACTIVE(lease)
    ├── app died ────────────────┤
    └── daemon restarted ────────┘   lease is in memory, never persisted
 ```
+
+> **What shipped is simpler than this.** One window of 600s, capped in the daemon, with no
+> separate idle or stall clock — plus a keep-unlocked heartbeat the design below does not
+> have, which closes the window on silence rather than on a timer. The lease diagram's
+> `app died` and `daemon restarted` arrows are both implemented (binder death, and a clear at
+> daemon startup). `T_idle` and `T_stall` are not. Treat the timers below as a design that
+> was simplified, not as a description of the code.
 
 **Three timers, and the third is not optional:**
 
