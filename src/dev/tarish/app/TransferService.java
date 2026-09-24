@@ -193,6 +193,22 @@ public final class TransferService extends Service {
     private final ITarishCallback.Stub callback = new ITarishCallback.Stub() {
         @Override public void onPeerFound(TarishPeer peer) {}
         @Override public void onPeerLost(String peerId) {}
+
+        /**
+         * DELIBERATELY NEVER ANSWERED, and this no-op is doing real work.
+         *
+         * The keep-unlocked challenge must be answered only while a person has Tarish
+         * unlocked and in front of them. This is a background service: it runs with the app
+         * closed, with the screen off, and for as long as a transfer lasts. If it replied,
+         * the exemption would stay open in exactly the situations the lock exists to cover
+         * -- app swiped away, phone in a pocket -- and the whole design would quietly become
+         * "the window stays open while the process lives".
+         *
+         * MainActivity answers, gated on its own window and on being resumed. Nothing else
+         * should, ever. A compile error brought this method here; the empty body is the
+         * correct implementation, not a placeholder.
+         */
+        @Override public void onKeepUnlockedChallenge(long nonce) {}
         @Override public void onTransferOffered(long id, String peerId, String[] names,
                 long totalBytes, int protocol) {}
         @Override public void onTransferPinRequired(long id) {}
