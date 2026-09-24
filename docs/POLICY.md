@@ -237,14 +237,23 @@ something to quietly benefit from.
 > not something to quietly benefit from — is the argument the implemented design still rests
 > on.
 
-So: **no framework patch, and none should be written.** Tarish detects lockdown and
-disables itself, and the session model below is what re-enables it after
-authentication. Everything is enforced in our own code, which also means it is
-fail-closed by construction rather than by asking netd nicely.
+> ~~So: **no framework patch, and none should be written.** Tarish detects lockdown and
+> disables itself, and the session model below is what re-enables it after
+> authentication. Everything is enforced in our own code, which also means it is
+> fail-closed by construction rather than by asking netd nicely.~~
+>
+> ~~Detecting lockdown: the app reads `Settings.Secure.always_on_vpn_lockdown` (and
+> `always_on_vpn_app`), which is readable to a platform-signed app, and relays it to the
+> daemon alongside the rest of the policy.~~
 
-Detecting lockdown: the app reads `Settings.Secure.always_on_vpn_lockdown` (and
-`always_on_vpn_app`), which is readable to a platform-signed app, and relays it to the
-daemon alongside the rest of the policy.
+**↑ Superseded — both paragraphs are wrong.** See the correction above. They are struck
+rather than deleted because the reasoning that follows them is still the design's basis, and
+because the second one is a good example of a plausible API that does not work: the setting
+is readable, returns a value, and that value is `null` on a device where lockdown is
+demonstrably in force.
+
+Everything from here to the end of this section is the ORIGINAL 2026-09 design note, kept
+for its reasoning. For what ships, read grapheneos `docs/VPN-LOCKDOWN.md`.
 
 ### The session model
 

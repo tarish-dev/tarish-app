@@ -894,7 +894,7 @@ with and without a shared network.
 | **send** | 22 MB/s | Wi-Fi Direct 10.5 MB/s (21.6 MB in 2.0s); Bluetooth bootstrap ~150 KB/s |
 | **receive** | 21.6 MB in 0.46s | Wi-Fi Direct, group up in 3.4s on 5 GHz; Bluetooth ~115 KB/s |
 
-`libtarish_protocol` carries 202 tests. The two rules that cost the most to learn:
+`libtarish_protocol` carries 204 tests. The two rules that cost the most to learn:
 **the advertiser hosts the upgrade network and the discoverer joins it** — not sender and
 receiver — and **Wi-Fi LAN is a bootstrap medium, never an upgrade target.**
 
