@@ -222,12 +222,27 @@ something to quietly benefit from.
 > written, and is a **no-op**: it keys on `LOCKDOWN_VPN_MATCH`, which uid 7500 never carries,
 > for the same package-vs-AID reason.
 >
-> **"The app reads `Settings.Secure.always_on_vpn_lockdown`."** It reads **null** while
-> lockdown is in force — measured on blazer. A VPN app can put the device in lockdown by
-> another path, so the setting is not a reliable signal for anyone, platform-signed or not.
-> **The app still cannot detect lockdown**, and the UI therefore cannot truthfully say it is
-> active. Checking the `ip -6 rule` output for `prohibit` is the only reliable test, and an
-> app cannot run it.
+> **"The app reads `Settings.Secure.always_on_vpn_lockdown`."** Still wrong, but the reason
+> given here on 2026-09-24 was *also* wrong and is corrected again below.
+>
+> It does **not** read null. That finding came from running `settings get **global** …`; the
+> key is in the **secure** namespace, where it tracks reality correctly (`0` -> `1`, measured
+> on blazer). A `global` read returns `null` on every device in every state, so the evidence
+> was a wrong-namespace read rather than a platform limitation.
+>
+> The app still does not use it, for reasons that survive the correction:
+>
+> - the setting is *configuration* and the rules are *enforcement*, and they are not atomic —
+>   three `prohibit` rules were live while it still read `0`
+> - `null` legitimately means "no VPN profile installed", not "unknown"
+> - a settings read **cannot be scoped by SELinux** (settings are not SELinux objects), so the
+>   app would need `READ_SECURE_SETTINGS` — every secure key — on the process that parses
+>   hostile file content
+>
+> **What ships instead:** tarishd dumps routing rules over netlink, matches on the action
+> `FR_ACT_PROHIBIT`, and publishes `tarish.awdl.lockdown`; the app asks the daemon. Properties
+> *can* be scoped per key, which is the whole reason this lands there. See grapheneos
+> `docs/VPN-LOCKDOWN.md`.
 >
 > What actually makes sharing work under a kill-switch is **policy routing** — an `ip rule`
 > for `tlink0` above `PROHIBIT_NON_VPN`. Authoritative account, including the authenticated
