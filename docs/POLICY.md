@@ -1,13 +1,37 @@
 # Policy: MDM control, and behaviour under VPN lockdown
 
-Two related pieces of control, agreed 2026-09-01, neither implemented yet.
+Two related pieces of control, agreed 2026-09-01.
 
 - **What an administrator may turn on and off**, per protocol and per direction.
+  **Implemented** — see the status table below.
 - **What happens when "Block connections without VPN" is enabled**, which is the harder
-  half and the one with a security argument attached.
+  half and the one with a security argument attached. Implemented in part; the full
+  reasoning lives in the grapheneos repo, `docs/VPN-LOCKDOWN.md`.
 
 They connect at one point: the administrator decides whether Tarish may operate under
 lockdown at all.
+
+## Status — what is actually built
+
+This file said "neither implemented yet" long after the first half shipped, which is worth
+recording as its own small lesson: a design document that is not updated when the design
+lands becomes an argument against the code.
+
+| | state |
+|---|---|
+| `res/xml/app_restrictions.xml` with five typed keys | **built** |
+| `APP_RESTRICTIONS` metadata in the manifest | **built** |
+| `RestrictionsManager.getApplicationRestrictions()` read in `PolicyStore` | **built** |
+| managed value PINS, absent key leaves the user's choice | **built** — `containsKey`, not a default comparison |
+| unrecognised managed value is read as OFF | **built** — a restriction we cannot honour is read restrictively |
+| the UI naming the SOURCE ("set by your organization") | **built** — `*Managed` flags |
+| the daemon enforcing the merged policy | **built** |
+| **reacting to `ACTION_APPLICATION_RESTRICTIONS_CHANGED` without a restart** | **NOT built** — a policy change applies the next time the app reads it |
+
+No MDM-specific code, and that is the point of the design below: these are AOSP managed
+configurations, so Intune, Workspace ONE, SOTI, MobileIron and Jamf all set them through the
+same platform API. Nothing here is written against any one vendor, and none of it has been
+tested against a real console — the mechanism is standard, the integration is unverified.
 
 ---
 
