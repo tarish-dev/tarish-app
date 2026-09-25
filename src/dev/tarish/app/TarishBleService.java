@@ -127,6 +127,11 @@ public final class TarishBleService extends Service {
                 Log.i(TAG, "AirDrop beacon from " + result.getDevice().getAddress()
                         + " rssi=" + result.getRssi());
             }
+            // An Apple device's state message. Forwarded, not decoded: the daemon owns
+            // the peer table this changes, and the decoder with its captured vectors.
+            if (data != null && data.length > 0 && data[0] == AirDropBeacon.TYPE_NEARBY_INFO) {
+                reportAppleAdvertisement(result.getDevice().getAddress(), result.getRssi(), data);
+            }
 
             if (android.os.SystemProperties.getBoolean("persist.tarish.ble_debug", false)) {
                 android.bluetooth.le.ScanRecord rec = result.getScanRecord();
@@ -403,6 +408,22 @@ public final class TarishBleService extends Service {
     private final java.util.Map<String, Long> lastReported = new java.util.HashMap<>();
     private dev.tarish.ITarishService tarishService;
 
+    /**
+     * The daemon, looked up on demand and dropped on any failure.
+     *
+     * A proxy held across a daemon restart is dead in a way that fails silently, so the
+     * lookup is cheap and repeated rather than cached for good. Null means the service is
+     * not published, which is logged (rate-limited by the caller) rather than swallowed:
+     * a missing daemon used to be indistinguishable from a peer that was never seen.
+     */
+    private dev.tarish.ITarishService daemon() {
+        if (tarishService == null) {
+            android.os.IBinder b = android.os.ServiceManager.getService(SERVICE_NAME);
+            tarishService = b == null ? null : dev.tarish.ITarishService.Stub.asInterface(b);
+        }
+        return tarishService;
+    }
+
     /** Hand one Nearby advertisement to the daemon, which owns the decoder. */
     private void reportBlePeer(String address, int rssi, byte[] serviceData) {
         long now = android.os.SystemClock.elapsedRealtime();
@@ -411,25 +432,69 @@ public final class TarishBleService extends Service {
             return;
         }
         try {
-            if (tarishService == null) {
-                android.os.IBinder b = android.os.ServiceManager.getService(SERVICE_NAME);
-                tarishService = b == null ? null : dev.tarish.ITarishService.Stub.asInterface(b);
-            }
-            if (tarishService == null) {
-                // Was a silent return, which made a missing daemon indistinguishable
-                // from a peer that was never seen -- the peer list stayed empty and
-                // nothing anywhere said why. Rate-limited by the same clock as the
-                // reports so a dead daemon does not become its own flood.
+            dev.tarish.ITarishService svc = daemon();
+            if (svc == null) {
+                // Rate-limited by the same clock as the reports so a dead daemon does
+                // not become its own flood.
                 lastReported.put(address, now);
                 Log.w(TAG, "cannot report peers: " + SERVICE_NAME + " is not published");
                 return;
             }
-            tarishService.reportBlePeer(address, rssi, serviceData);
+            svc.reportBlePeer(address, rssi, serviceData);
             lastReported.put(address, now);
         } catch (Exception e) {
             // A dead proxy after a daemon restart. Drop it so the next sighting looks it
             // up again rather than failing forever against a binder that has gone.
             Log.d(TAG, "reportBlePeer failed, will rebind: " + e.getMessage());
+            tarishService = null;
+        }
+    }
+
+    /**
+     * Keep-alive cadence for an Apple address whose bytes have not changed.
+     *
+     * A change is forwarded at once -- that is the event, a device locking or switching
+     * AirDrop off -- and the daemon treats an address it has not heard for two seconds as
+     * gone, so unchanged bytes are repeated often enough to stay inside that. Apple
+     * devices advertise this several times a second; forwarding every sighting would be
+     * a binder call per advertisement per device for nothing new.
+     */
+    private static final long APPLE_KEEPALIVE_MS = 800;
+
+    private static final class AppleSighting {
+        long at;
+        byte[] data;
+    }
+
+    private final java.util.Map<String, AppleSighting> appleSeen = new java.util.HashMap<>();
+
+    /** Hand an Apple state message to the daemon, paced as the AIDL asks. */
+    private void reportAppleAdvertisement(String address, int rssi, byte[] data) {
+        long now = android.os.SystemClock.elapsedRealtime();
+        AppleSighting last = appleSeen.get(address);
+        if (last != null && now - last.at < APPLE_KEEPALIVE_MS
+                && java.util.Arrays.equals(last.data, data)) {
+            return;   // same bytes, reported recently: the daemon already knows
+        }
+        // Addresses rotate on every state change and never come back, so this map only
+        // grows. Sweep it now and then rather than keep a day of rotations.
+        if (appleSeen.size() > 64) {
+            appleSeen.values().removeIf(s -> now - s.at > 30_000);
+        }
+        try {
+            dev.tarish.ITarishService svc = daemon();
+            if (svc == null) {
+                return;   // reportBlePeer already logs this, on the same clock
+            }
+            svc.reportAppleAdvertisement(address, rssi, data);
+            if (last == null) {
+                last = new AppleSighting();
+                appleSeen.put(address, last);
+            }
+            last.at = now;
+            last.data = data;
+        } catch (Exception e) {
+            Log.d(TAG, "reportAppleAdvertisement failed, will rebind: " + e.getMessage());
             tarishService = null;
         }
     }
@@ -457,6 +522,19 @@ public final class TarishBleService extends Service {
         filters.add(new ScanFilter.Builder()
                 .setManufacturerData(AirDropBeacon.APPLE_COMPANY_ID,
                         new byte[] { AirDropBeacon.TYPE_AIRDROP },
+                        new byte[] { (byte) 0xFF })
+                .build());
+
+        // Apple's Nearby Info message. Every iPhone in range sends it continuously and
+        // it carries the one bit that says whether the device will take an AirDrop right
+        // now -- the signal that removes a peer that locked or left in seconds, where
+        // its mDNS TTL would keep it for 75 minutes. Matched on the first message type
+        // byte, as the AirDrop filter is: in a capture of every Apple device in a home
+        // over an afternoon, 0x10 was always first when present. The daemon decodes it
+        // and walks past a leading message if one ever appears.
+        filters.add(new ScanFilter.Builder()
+                .setManufacturerData(AirDropBeacon.APPLE_COMPANY_ID,
+                        new byte[] { AirDropBeacon.TYPE_NEARBY_INFO },
                         new byte[] { (byte) 0xFF })
                 .build());
 

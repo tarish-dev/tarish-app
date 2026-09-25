@@ -47,6 +47,15 @@ final class AirDropBeacon {
     /** Message type for AirDrop within Apple's manufacturer data. */
     static final byte TYPE_AIRDROP = 0x05;
 
+    /**
+     * Message type for Nearby Info: the device's own state, sent continuously by every
+     * iPhone in range. It carries the bit that says whether the device will take an
+     * AirDrop right now, which is how a peer that locked or left is removed from the
+     * send list in seconds. Not decoded here -- the app forwards the bytes and the
+     * daemon reads them; the measured bit table is in libtarish_protocol's `apple`.
+     */
+    static final byte TYPE_NEARBY_INFO = 0x10;
+
     private static final byte VERSION = 0x01;
     private static final int BODY_LEN = 0x12;
 

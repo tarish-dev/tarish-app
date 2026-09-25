@@ -78,6 +78,46 @@ It is worth saying why that mattered. The previous attempt at the mDNS TXT recor
 build-and-flash cycles. This layout is measured, so it is being treated as the
 authority.
 
+## The other direction: reading an iPhone's state off the air
+
+The beacon above is what we *send*. Since 2026-09-25 the same scan also *reads* one Apple
+message, and it is the reason a peer that locked or left now disappears from the send list in
+seconds instead of the 75 minutes its mDNS TTL would keep it.
+
+Every iPhone in range advertises **Nearby Info**, type `0x10`, continuously:
+
+```
+10 05 <FLAGS> <ACTION> <auth tag ×3>
+```
+
+**Bit `0x40` of FLAGS is set exactly while the device will take an AirDrop** — AirDrop on
+*and* unlocked. Locking and switching Receiving Off both clear it, which is why stock labels
+both states "screen off". Measured 2026-09-25 on two iPhones with different action bytes,
+one action at a time; the table and provenance are in the daemon's
+`protocol/src/apple.rs`, which is also where the bytes are decoded. Apple publishes none of
+this.
+
+What the app does, and only this:
+
+- `TarishBleService` adds a scan filter for Apple manufacturer data whose first message type
+  is `0x10`, beside the existing `0x05` filter.
+- Each sighting is forwarded to `ITarishService.reportAppleAdvertisement` — at once when the
+  bytes for that address change (that *is* the event), otherwise every 800 ms as a keep-alive.
+  The daemon treats an address it has not heard for two seconds as gone.
+- The tile reflects `TarishPeer.state`: `STATE_SCREEN_OFF` dims it, adds a red "screen off"
+  line, and a tap explains instead of failing. The daemon takes the peer out of the list a few
+  seconds later if it stays that way, and it is back the moment the device is receptive again.
+
+Two things the address cannot do, so the app does not try: it is random and **rotates on every
+state change** (both phones rotated at lock and at Everyone-on), and the auth tag is
+resolvable only by devices holding the owner's iCloud keys. So nothing here maps a BLE address
+to an mDNS peer. The daemon counts devices *present* and *receptive*, probes every AirDrop peer
+when either count drops, and labels peers only when the count covers all of them and none is
+receptive — exact with one iPhone in range, withheld when it would be a guess.
+
+Not measured yet: a Mac's flags, and whether a locked iPhone keeps answering mDNS probes
+(which is what decides the two-iPhone case).
+
 ## What is not implemented yet
 
 - **Responding to a beacon.** Tarish scans and logs sightings; it does not yet use one

@@ -169,3 +169,28 @@ work first: if a peer lists us with the corrected records, the TLVs were not
 required and this stays a curiosity. If it does not, `mosey_update` is the next
 thing to trace — its real arguments can be read by hooking the call in
 Google's daemon.
+
+## Liveness: a peer is kept by answering, not by its TTL
+
+iOS advertises these records with `ttl=4500` and sends a goodbye only on a graceful
+withdrawal. Locking the phone, switching Receiving Off and walking out of range send
+**nothing** — measured on one timeline: records arriving at ttl=4500 throughout while
+the device could no longer be reached. So the TTL is a cache-validity clock and was
+never a liveness signal; honouring it (correct — an earlier bug was dropping peers
+*too early*) left a departed iPhone tappable for 75 minutes.
+
+Since 2026-09-25 the daemon asks instead. Every peer it holds an address for gets a
+**unicast QU query at its own link-local `:5353`** every 3 s (RFC 6762 §5.5); a
+multicast QU query counts against every peer too. Any record from the peer zeroes
+its counter; three unanswered with nothing heard for 4 s and it is dropped, whatever
+its TTL says. The TTL rule stays as the backstop for a peer that never resolved an
+address. When the BLE scan sees a device stop being receptive or fall silent (see
+[BLE-DISCOVERY.md](BLE-DISCOVERY.md)), the daemon fires three probes a second apart,
+so the peer that stopped answering is gone about four seconds after the person's
+action.
+
+A TCP connect to the AirDrop port is **not** a liveness probe. A healthy, unlocked,
+discoverable iPhone answers most of them with RST — iOS opens the listener only
+around an actual exchange — so `ECONNREFUSED` means "present, not listening at this
+instant" and nothing more. Evicting on it produced the churn once mistaken for a
+discovery bug.

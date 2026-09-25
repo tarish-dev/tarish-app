@@ -3213,7 +3213,8 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // by the other side of an IPC boundary.
         List<String> rows = new ArrayList<>();
         for (TarishPeer p : peers) {
-            rows.add(p.id + "|" + p.name);
+            // State is drawn on the tile, so a change of state alone must redraw.
+            rows.add(p.id + "|" + p.name + "|" + p.state);
         }
         Collections.sort(rows);
         StringBuilder sig = new StringBuilder(shared.isEmpty() ? "gated\n" : "live\n");
@@ -3250,8 +3251,18 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 peerBox.addView(row);
             }
             TarishPeer p = peers[i];
-            LinearLayout tile = Ui.deviceTile(this, glyphFor(p), p.name, kindOf(p));
-            if (shared.isEmpty()) {
+            boolean screenOff = p.state == ITarishService.STATE_SCREEN_OFF;
+            LinearLayout tile = Ui.deviceTile(this, glyphFor(p), p.name, kindOf(p),
+                    screenOff ? "screen off" : null);
+            if (screenOff) {
+                // Still on the link and still answering, but its owner locked it or
+                // switched AirDrop off, and an offer would be refused. Dimmed and inert,
+                // the way stock shows the same state; the daemon takes it off the list a
+                // few seconds later if it stays that way, and it is back the moment the
+                // device is receptive again.
+                tile.setAlpha(0.45f);
+                tile.setOnClickListener(v -> nudgeScreenOff(p));
+            } else if (shared.isEmpty()) {
                 // Dimmed and inert. A tile that looks tappable and silently does
                 // nothing is worse than one that plainly cannot be used -- tapping it
                 // and getting no response reads as the app being broken.
@@ -3331,6 +3342,14 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     private void nudgeChooseFiles() {
         outcomeTitle = "Choose files first";
         outcomeDetail = "pick something to send, then tap a device";
+        render();
+    }
+
+    /** Tapped a tile the daemon says is not receiving. Say why rather than try and fail. */
+    private void nudgeScreenOff(TarishPeer peer) {
+        outcomeTitle = peer.name + " is not receiving";
+        outcomeDetail = "its screen is off, or AirDrop is switched off — wake it and check "
+                + "AirDrop is set to Everyone";
         render();
     }
 

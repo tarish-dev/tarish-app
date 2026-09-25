@@ -224,6 +224,16 @@ final class Ui {
      * there reads as a thing you tap and a list row reads as a setting.
      */
     static LinearLayout deviceTile(Context c, Glyph.Kind glyph, String name, String kind) {
+        return deviceTile(c, glyph, name, kind, null);
+    }
+
+    /**
+     * The same tile with a state line under the name -- "screen off" -- when
+     * {@code caption} is non-null. Set in the error colour on purpose: it says the tile
+     * will not work right now, which is a warning and not a description.
+     */
+    static LinearLayout deviceTile(Context c, Glyph.Kind glyph, String name, String kind,
+            String caption) {
         LinearLayout tile = new LinearLayout(c);
         tile.setOrientation(LinearLayout.VERTICAL);
         tile.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -238,6 +248,14 @@ final class Ui {
         n.setMaxLines(1);
         n.setEllipsize(android.text.TextUtils.TruncateAt.END);
         tile.addView(n);
+
+        if (caption != null) {
+            TextView s = text(c, caption, 11, error(c), false);
+            s.setGravity(Gravity.CENTER);
+            s.setPadding(0, dp(c, 2), 0, 0);
+            s.setMaxLines(1);
+            tile.addView(s);
+        }
 
         // A BADGE, not a caption. Which protocol reached a device is not decoration:
         // an Apple device found over AirDrop cannot be sent to over Quick Share, so the
