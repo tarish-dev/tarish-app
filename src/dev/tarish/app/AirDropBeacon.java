@@ -37,7 +37,8 @@ import java.security.NoSuchAlgorithmException;
  * <p><b>Provenance.</b> This layout is not from a specification; Apple publishes none.
  * It was reverse-engineered by the author against real Apple devices in GoOpenDrop,
  * and is reimplemented here from that description rather than copied. Credit is
- * recorded in docs/CREDITS.md.
+ * recorded in docs/CREDITS.md. It is the layout current Apple devices sent in 2019;
+ * what they send now is different in two fields — see {@code VERSION_PROP} below.
  */
 final class AirDropBeacon {
 
@@ -56,10 +57,49 @@ final class AirDropBeacon {
      */
     static final byte TYPE_NEARBY_INFO = 0x10;
 
-    private static final byte VERSION = 0x01;
     private static final int BODY_LEN = 0x12;
 
+    /**
+     * THE LAYOUT ABOVE IS THE 2019 ONE, AND IT MAY BE WHY IDLE iPHONES DO NOT WAKE FOR US.
+     *
+     * Captured 2026-09-25 from three Apple senders with their share sheets open (two
+     * iPhones and a Mac): every one of them sends
+     *
+     * <pre>
+     *   05 12  40 xx xx xx  00 00 00 00  03  hh hh hh hh hh hh hh hh  00
+     *          ^ lead: 0x40 then three bytes that differ per device  ^ version 3
+     * </pre>
+     *
+     * where our beacon is eight zero bytes and version 1. All day, every confirmed
+     * discovery of the iPhone Mini followed the Mini's OWN state change (AirDrop set to
+     * Everyone); with the Mini idle and receptive, neither our steady beacon, nor
+     * restarting it, nor a fresh advertising address brought it onto the AWDL link in
+     * over twenty minutes. A modern receiver may simply not recognise a version-1 beacon
+     * as a sender. So the layout is selectable at runtime for the measurement:
+     *
+     * <pre>
+     *   setprop persist.tarish.beacon_ver 3     # default: lead 40+random, version 3
+     *   setprop persist.tarish.beacon_ver 1     # the 2019 layout, for comparison
+     * </pre>
+     *
+     * The three lead bytes are random per process, like a per-session identifier; the
+     * hashes stay zero because we claim no identity. What the lead bytes MEAN is not
+     * known; only that every current Apple sender carries them.
+     */
+    private static final String VERSION_PROP = "persist.tarish.beacon_ver";
+    private static final byte VERSION_LEGACY = 0x01;
+    private static final byte VERSION_CURRENT = 0x03;
+    private static final byte LEAD_FLAG = 0x40;
+    private static final byte[] LEAD_SESSION = new byte[3];
+    static {
+        new java.security.SecureRandom().nextBytes(LEAD_SESSION);
+    }
+
     private AirDropBeacon() {}
+
+    private static int version() {
+        return android.os.SystemProperties.getInt(VERSION_PROP, VERSION_CURRENT);
+    }
 
     /**
      * Build the manufacturer-data payload for "visible to everyone".
@@ -87,8 +127,17 @@ final class AirDropBeacon {
         int i = 0;
         out[i++] = TYPE_AIRDROP;
         out[i++] = (byte) BODY_LEN;
-        i += 8;                       // eight zero bytes, already zero
-        out[i++] = VERSION;
+        if (version() == VERSION_LEGACY) {
+            i += 8;                   // eight zero bytes, already zero
+            out[i++] = VERSION_LEGACY;
+        } else {
+            out[i++] = LEAD_FLAG;
+            out[i++] = LEAD_SESSION[0];
+            out[i++] = LEAD_SESSION[1];
+            out[i++] = LEAD_SESSION[2];
+            i += 4;                   // four zero bytes, already zero
+            out[i++] = VERSION_CURRENT;
+        }
         out[i++] = apple[0];  out[i++] = apple[1];
         out[i++] = phone[0];  out[i++] = phone[1];
         out[i++] = email[0];  out[i++] = email[1];
