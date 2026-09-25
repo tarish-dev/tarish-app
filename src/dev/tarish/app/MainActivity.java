@@ -3268,9 +3268,17 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             }
             TarishPeer p = peers[i];
             boolean screenOff = p.state == ITarishService.STATE_SCREEN_OFF;
+            boolean notAccepting = p.state == ITarishService.STATE_NOT_ACCEPTING;
             LinearLayout tile = Ui.deviceTile(this, glyphFor(p), p.name, kindOf(p),
-                    screenOff ? "screen off" : null);
-            if (screenOff) {
+                    screenOff ? "screen off" : notAccepting ? "not accepting" : null);
+            if (notAccepting) {
+                // On the link, screen on, but it will not take a file from this phone: an
+                // iPhone whose "Everyone for 10 Minutes" has run out. Nothing on the air
+                // says so; the daemon learned it by asking. Dimmed, and a tap explains the
+                // remedy, which is on the other device.
+                tile.setAlpha(0.45f);
+                tile.setOnClickListener(v -> nudgeNotAccepting(p));
+            } else if (screenOff) {
                 // Still on the link and still answering, but its owner locked it or
                 // switched AirDrop off, and an offer would be refused. Dimmed and inert,
                 // the way stock shows the same state; the daemon takes it off the list a
@@ -3372,6 +3380,14 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             // escaping here would kill the app.
             Log.w(TAG, "could not reach the beacon", e);
         }
+    }
+
+    /** Tapped an iPhone that is back to Contacts Only. The fix is on that phone. */
+    private void nudgeNotAccepting(TarishPeer peer) {
+        outcomeTitle = peer.name + " is not accepting from this phone";
+        outcomeDetail = "its AirDrop is set to Contacts Only — on that device, set AirDrop to "
+                + "Everyone for 10 Minutes and try again";
+        render();
     }
 
     /** Tapped a tile the daemon says is not receiving. Say why rather than try and fail. */
