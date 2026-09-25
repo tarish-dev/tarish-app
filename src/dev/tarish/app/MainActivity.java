@@ -15,7 +15,6 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
-import android.os.SystemClock;
 import android.os.ServiceManager;
 import android.provider.OpenableColumns;
 import android.text.Editable;
@@ -2841,11 +2840,6 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // daemon is being rebound. Only the advertisement is affected -- scanning keeps
         // running regardless.
         sendBeacon(beacon);
-        // Entering or re-entering the Send screen restarts the empty-list clock, so the
-        // beacon is not cycled on the very first poll.
-        if (sendMode) {
-            airdropSeenAt = SystemClock.elapsedRealtime();
-        }
         if (service == null) {
             setIdentityState("tarish service unavailable", false);
             return;
@@ -3208,30 +3202,16 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             }
             named.add(p);
         }
-        // AN EMPTY SEND LIST FOR TEN SECONDS MEANS THE BEACON SHOULD REAPPEAR.
+        // NOT CYCLING THE BEACON ON AN EMPTY LIST -- tried and withdrawn the same day.
         //
-        // An idle iPhone wakes AWDL when a sender's 0x05 beacon APPEARS. Every discovery
-        // that worked on 2026-09-25 followed a fresh beacon start by about two seconds;
-        // with the beacon on continuously for minutes, iPhones that were plainly receptive
-        // on BLE did not rejoin the link for a quarter of an hour. A stock share sheet is
-        // transient, so its beacon comes and goes; our Send screen stays open, so this
-        // makes ours come and go too: nothing listed for 10 s, beacon off for 4 s, on
-        // again, at most once every 30 s. Counted on the raw list, before names are
-        // filtered, so a peer that is mid-resolution counts as present.
-        int airdrop = 0;
-        for (TarishPeer p : peers) {
-            if (p.protocol == ITarishService.PROTOCOL_AIRDROP) {
-                airdrop++;
-            }
-        }
-        long now = SystemClock.elapsedRealtime();
-        if (airdrop > 0) {
-            airdropSeenAt = now;
-        } else if (sendMode && resumed
-                && now - airdropSeenAt > BEACON_REARM_AFTER_MS
-                && now - beaconCycledAt > BEACON_REARM_EVERY_MS) {
-            cycleBeacon();
-        }
+        // The idea: an idle iPhone wakes AWDL when a sender's 0x05 beacon APPEARS, every
+        // discovery on 2026-09-25 followed a fresh beacon start, so make a long-lived Send
+        // screen's beacon come and go like a share sheet's. Measured over five minutes:
+        // nine cycles (off 4 s every 30 s), zero rediscoveries -- and each stop/start of
+        // the advertising set stalled our own BLE scan for seconds, which made the daemon's
+        // population flap and its labels flicker. The beacon stays on steadily while the
+        // Send screen is open; what wakes a peer that has gone idle is an open question
+        // recorded in BUILD-NOTES 70/71, not something to poke at from here.
 
         peers = named.toArray(new TarishPeer[0]);
 
@@ -3379,29 +3359,6 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         outcomeTitle = "Choose files first";
         outcomeDetail = "pick something to send, then tap a device";
         render();
-    }
-
-    /** No AirDrop peer listed for this long on the Send screen before the beacon is cycled. */
-    private static final long BEACON_REARM_AFTER_MS = 10_000;
-    /** The beacon is off for this long so an iPhone sees it vanish and reappear. */
-    private static final long BEACON_GAP_MS = 4_000;
-    /** And never more often than this. */
-    private static final long BEACON_REARM_EVERY_MS = 30_000;
-
-    /** Last time getPeers listed an AirDrop peer; reset on entering the Send screen. */
-    private long airdropSeenAt;
-    private long beaconCycledAt;
-
-    /** Drop the beacon and raise it again, so a receiver sees a sender appear. */
-    private void cycleBeacon() {
-        beaconCycledAt = SystemClock.elapsedRealtime();
-        Log.i(TAG, "no AirDrop peer for 10 s on the Send screen — cycling the beacon");
-        sendBeacon(false);
-        main.postDelayed(() -> {
-            if (sendMode && resumed) {
-                sendBeacon(true);
-            }
-        }, BEACON_GAP_MS);
     }
 
     /** Tell TarishBleService to advertise the AirDrop beacon or stop. Never throws. */
