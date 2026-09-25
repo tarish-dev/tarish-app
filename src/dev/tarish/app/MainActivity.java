@@ -3187,13 +3187,24 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             return;
         }
         // A peer whose "name" is still the raw 12-hex mDNS identifier has not answered
-        // /Discover yet, and a device that will not answer cannot accept a file either.
-        // Showing the hex string as though it were a device name is what made the list
-        // look broken -- it is not a name, it is the absence of one.
+        // /Discover yet. It used to be HIDDEN until it had -- on the reasoning that a
+        // device that will not answer cannot accept a file either. That reasoning was
+        // wrong twice over, measured 2026-09-25: a healthy iPhone refuses or times out
+        // the first few connects after it joins (30-60 s of naming retries), and the
+        // name is only for display -- the send path never needs it. Hiding the tile for
+        // that minute read as "not discovered" every single time. So an unnamed AirDrop
+        // peer is shown as "Apple device" and becomes its real name when /Discover
+        // answers; the hex string itself is still never shown.
         List<TarishPeer> named = new ArrayList<>();
         for (TarishPeer p : peers) {
-            if (p.name == null || p.name.matches("[0-9a-f]{12}")) {
+            if (p.name == null) {
                 continue;
+            }
+            if (p.name.matches("[0-9a-f]{12}")) {
+                if (p.protocol != ITarishService.PROTOCOL_AIRDROP) {
+                    continue;
+                }
+                p.name = "Apple device";
             }
             // A peer found by a protocol this device may not send over is not actionable,
             // and the tile would fail at sendFiles. Dropped here rather than at the tap.
