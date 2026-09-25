@@ -2569,6 +2569,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
     protected void onPause() {
         super.onPause();
         main.removeCallbacks(poll);
+        // Before setDiscoverable: it keeps the sender beacon on while `resumed` says the
+        // Send screen is in front of someone, and leaving is exactly when it must stop.
+        resumed = false;
         setDiscoverable(false, "onPause");
         // THE EXEMPTION IS FOR SOMEONE WHO IS PRESENT AND LOOKING AT IT, so leaving the
         // foreground closes it -- not the ten-minute timer running out later. The daemon
@@ -2578,7 +2581,6 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
         // The radio, unlike visibility, is released on leaving the foreground. The
         // daemon holds it for another half-minute so a file picker or a glance at
         // another app does not tear the link down and back up.
-        resumed = false;
         try {
             unregisterReceiver(associationWatcher);
         } catch (IllegalArgumentException e) {
@@ -2818,18 +2820,29 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             Log.i(TAG, "setDiscoverable(true) skipped from " + why + " — policy denies receive");
             return;
         }
-        Log.i(TAG, "setDiscoverable(" + visible + ") from " + why + " sendMode=" + sendMode);
+        // THE BEACON IS ALSO HOW SENDING FINDS PEERS. Apple's 0x05 message is the SENDER's
+        // ("a share sheet is open"); an idle iPhone in Everyone mode brings AWDL up only when
+        // it hears one. This used to send `visible` alone, so the Send screen switched the
+        // beacon off and an idle iPhone next to the phone never joined the link -- zero mDNS
+        // records from anyone, for minutes, while BLE heard it plainly. Going to Receive and
+        // back "fixed" it because Receive turned the beacon on. Measured 2026-09-25: beacon
+        // on by hand on the Send screen, peer discovered 1.5 s later. So: on while visible
+        // OR while the Send screen is in the foreground and AirDrop send is permitted.
+        // onPause clears `resumed` before calling here, so leaving the screen turns it off.
+        boolean beacon = visible
+                || (sendMode && resumed && allowed(ITarishService.PROTOCOL_AIRDROP));
+        Log.i(TAG, "setDiscoverable(" + visible + ") from " + why + " sendMode=" + sendMode
+                + " beacon=" + beacon);
 
         // THE BLE BEACON IS OURS, NOT THE DAEMON'S, so it has to be told separately.
         // Before the daemon call and outside its null check on purpose: the beacon does not
         // depend on the binder being up, and going invisible must still work when the
         // daemon is being rebound. Only the advertisement is affected -- scanning keeps
-        // running, because that is how SENDING finds peers and a sender is not making
-        // itself visible.
+        // running regardless.
         try {
             startService(new Intent(this, TarishBleService.class)
                     .setAction(TarishBleService.ACTION_VISIBILITY)
-                    .putExtra(TarishBleService.EXTRA_VISIBLE, visible));
+                    .putExtra(TarishBleService.EXTRA_VISIBLE, beacon));
         } catch (IllegalStateException e) {
             // Same background-start rule as startBeacon(): refusing is correct in that
             // state, and an exception escaping here would kill the app.

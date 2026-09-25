@@ -78,6 +78,23 @@ It is worth saying why that mattered. The previous attempt at the mDNS TXT recor
 build-and-flash cycles. This layout is measured, so it is being treated as the
 authority.
 
+## The beacon is the sender's message — it must be on while the Send screen is open
+
+**Corrected 2026-09-25.** This document and the code treated the `0x05` beacon as a
+*receive-visibility* switch: on while the device may be found, off otherwise. The Send
+screen therefore switched it off. But `0x05` is Apple's **sender** message — measured the
+same day, an iPhone emits it only while a share sheet is open — and it is what makes an
+idle iPhone in Everyone mode bring AWDL up and start answering mDNS. With the beacon off,
+blazer on the Send screen saw **zero mDNS records from anyone for minutes** while BLE heard
+two receptive iPhones on the desk; switched on by hand, a peer was on the link **1.5 s
+later**. That was the long-standing "the Mini is not discovered" bug, and the "go to Receive
+and come back" workaround worked because Receive turned the beacon on.
+
+So `MainActivity.setDiscoverable` now asks for the beacon when the device is visible **or**
+the Send screen is in the foreground with AirDrop send permitted, and stops it on pause.
+The daemon's mDNS advertisement is still governed by visibility alone: a sender does not
+advertise itself, but it does beacon.
+
 ## The other direction: reading an iPhone's state off the air
 
 The beacon above is what we *send*. Since 2026-09-25 the same scan also *reads* one Apple

@@ -332,15 +332,22 @@ public final class TarishBleService extends Service {
      * Turn the beacon on or off without stopping the service.
      *
      * THE VISIBILITY WINDOW HAS TO REACH BLE, and gating the whole service would be wrong:
-     * this one object both ADVERTISES (which the window governs) and SCANS (which it does
-     * not -- scanning is how SENDING finds peers, and a sender is not making itself
-     * visible). Stopping the service to become invisible would take send-side discovery
-     * with it.
+     * this one object both ADVERTISES and SCANS, and stopping the service to become
+     * invisible would take send-side discovery with it. So only the advertisement is gated.
+     * Without this the window was a half-measure twice over: the daemon stopped answering
+     * AirDrop and, after the LAN responder was fixed, stopped answering Quick Share over
+     * mDNS -- while this beacon carried on telling every Apple device in range that the
+     * phone was here.
      *
-     * So only the advertisement is gated. Without this the window was a half-measure twice
-     * over: the daemon stopped answering AirDrop and, after the LAN responder was fixed,
-     * stopped answering Quick Share over mDNS -- while this beacon carried on telling every
-     * Apple device in range that the phone was here.
+     * BUT THE BEACON IS NOT ONLY "I AM VISIBLE". It is Apple's SENDER message (type 0x05:
+     * "a share sheet is open"), and it is what makes an idle iPhone bring AWDL up at all.
+     * MainActivity therefore asks for it while the SEND screen is open too, whatever the
+     * receive visibility says. Measured 2026-09-25: on the Send screen with the beacon off,
+     * two receptive iPhones on the desk and zero mDNS records from anyone for minutes;
+     * beacon switched on, a peer on the link 1.5 s later. That was the "Mini is not
+     * discovered" bug, and the old "go to Receive and back" workaround worked because
+     * Receive turned this on. The earlier comment here -- "a sender is not making itself
+     * visible" -- was the wrong half of the truth.
      */
     static final String ACTION_VISIBILITY = "dev.tarish.app.VISIBILITY";
     static final String EXTRA_VISIBLE = "visible";
