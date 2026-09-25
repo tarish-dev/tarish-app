@@ -380,22 +380,32 @@ public final class TarishBleService extends Service {
             Log.w(TAG, "no LE advertiser — radio does not support advertising");
             return;
         }
+        // Connectable is a MEASUREMENT KNOB for now. Apple's own Continuity advertisements
+        // are ADV_IND (connectable), which also puts a Flags AD in the packet; ours have
+        // been ADV_NONCONN_IND. Whether an iPhone's sharingd only takes senders from
+        // connectable advertisements is one of the open questions in task #56.
+        boolean connectable =
+                android.os.SystemProperties.getBoolean("persist.tarish.beacon_connectable", false);
         AdvertiseSettings settings = new AdvertiseSettings.Builder()
                 .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-                .setConnectable(false)
+                .setConnectable(connectable)
                 .setTimeout(0)          // 0 = advertise until told to stop
                 .build();
 
         // No device name in the payload. The 31-byte advertisement has no room to
         // spare once Apple's manufacturer data is in it, and AirDrop carries the
         // display name later in the protocol rather than here.
+        byte[] payload = AirDropBeacon.everyone();
         AdvertiseData data = new AdvertiseData.Builder()
                 .setIncludeDeviceName(false)
                 .setIncludeTxPowerLevel(false)
-                .addManufacturerData(AirDropBeacon.APPLE_COMPANY_ID, AirDropBeacon.everyone())
+                .addManufacturerData(AirDropBeacon.APPLE_COMPANY_ID, payload)
                 .build();
 
+        // Say exactly what went on air, so a measurement can be read back from the log.
+        Log.i(TAG, "beacon payload " + AirDropBeacon.hex(payload)
+                + (connectable ? " connectable" : " non-connectable"));
         advertiser.startAdvertising(settings, data, advertiseCallback);
     }
 

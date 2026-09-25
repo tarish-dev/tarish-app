@@ -109,7 +109,45 @@ final class AirDropBeacon {
      * identity rather than guessing at one. Receivers set to everyone respond.
      */
     static byte[] everyone() {
+        byte[] override = hexOverride();
+        if (override != null) {
+            return override;
+        }
         return build(new byte[2], new byte[2], new byte[2], new byte[2]);
+    }
+
+    /**
+     * MEASUREMENT HOOK: {@code persist.tarish.beacon_hex} replaces the whole manufacturer
+     * payload with the given bytes (4 to 27 bytes, hex, no separators). It exists because
+     * the question "which bytes make an idle iPhone react to a sender" costs a rebuild and
+     * a reboot per guess otherwise; with this, a variant is a setprop and a beacon restart.
+     * Unset in normal use. Invalid values are ignored, never half-applied.
+     */
+    private static final String HEX_PROP = "persist.tarish.beacon_hex";
+
+    static byte[] hexOverride() {
+        String hex = android.os.SystemProperties.get(HEX_PROP, "");
+        if (hex.isEmpty() || hex.length() % 2 != 0 || hex.length() < 8 || hex.length() > 54) {
+            return null;
+        }
+        byte[] out = new byte[hex.length() / 2];
+        try {
+            for (int i = 0; i < out.length; i++) {
+                out[i] = (byte) Integer.parseInt(hex.substring(2 * i, 2 * i + 2), 16);
+            }
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        return out;
+    }
+
+    /** Hex of a payload, for the log line that says which variant is on air. */
+    static String hex(byte[] b) {
+        StringBuilder s = new StringBuilder(b.length * 2);
+        for (byte x : b) {
+            s.append(String.format("%02x", x));
+        }
+        return s.toString();
     }
 
     /**
