@@ -93,6 +93,27 @@ final class WifiDirectJoiner {
     private static final long STAGE_CAP_MS = 15_000;
 
     /**
+     * The most to wait for ConnectivityService to register a Network for the P2P group.
+     *
+     * SEPARATE FROM THE STAGE CAP, AND MUCH SMALLER, because this stage has two outcomes and
+     * only one of them is worth waiting for. When a Network does arrive it arrives almost at
+     * once: measured twice under a kill-switch at 300 ms and 348 ms after group formation.
+     * When it does not arrive, it never does — Android registers no Network for a Wi-Fi Direct
+     * group on a device with no other connectivity, and no amount of waiting changes that.
+     *
+     * It used to be handed whatever was left of the join budget, so the second case cost the
+     * FULL remainder. Measured 2026-09-25 on a 20 MB off-network send: 20.0 s of dead air
+     * between "asking the app to join" and "no Wi-Fi Direct network arrived; continuing
+     * unbound. visible: []", and then the unbound connect succeeded 0.1 s later. Twenty
+     * seconds of frozen progress bar, bought nothing, every single off-network transfer.
+     *
+     * Two seconds keeps ~5x margin over the slowest success ever seen and gives the other case
+     * back the other eighteen. Raise it only against a measurement of a Network that actually
+     * arrived later than this, not against a hypothetical one.
+     */
+    private static final long BIND_WAIT_MS = 2_000;
+
+    /**
      * Wi-Fi Direct network names always begin this way. Checked because a name that does
      * not is not a group we can join, and WifiP2pConfig.Builder would throw on it -- an
      * exception out of a callback thread rather than a declined upgrade.
@@ -408,8 +429,8 @@ final class WifiDirectJoiner {
                 LinkProperties lp = cm.getLinkProperties(x);
                 seen.append(lp == null ? "?" : String.valueOf(lp.getInterfaceName())).append(' ');
             }
-            Log.w(TAG, "no Wi-Fi Direct network arrived; continuing unbound. visible: ["
-                    + seen.toString().trim() + "]");
+            Log.w(TAG, "no Wi-Fi Direct network arrived in " + budgetMs
+                    + " ms; continuing unbound. visible: [" + seen.toString().trim() + "]");
         } catch (Throwable t) {
             // Deliberately Throwable, and deliberately non-fatal: every failure path here
             // leaves the socket unbound, which is how this worked before the binding existed.
@@ -464,7 +485,7 @@ final class WifiDirectJoiner {
             //
             // Best effort on purpose: if the network cannot be found or the bind fails we
             // carry on unbound, which is exactly what this did before. It can only help.
-            bindToP2p(ctx, fd, budgetMs);
+            bindToP2p(ctx, fd, Math.min(budgetMs, BIND_WAIT_MS));
             int flags = Os.fcntlInt(fd, OsConstants.F_GETFL, 0);
             Os.fcntlInt(fd, OsConstants.F_SETFL, flags | OsConstants.O_NONBLOCK);
 
