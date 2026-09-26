@@ -3355,11 +3355,32 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             return;
         }
         if (activeTransfer == 0) {
-            Log.w(TAG, "cancel: no transfer id yet (still connecting) — nothing to cancel");
-            progressLabel.setText("Still connecting — cannot cancel yet");
+            // NOT A DEAD BUTTON ANY MORE.
+            //
+            // "No id yet" never meant "nothing to cancel". The daemon allocates the id in
+            // try_begin -- before it resolves the peer, connects, or waits on /Ask -- so
+            // through that whole window there IS a running transfer and only this side is
+            // ignorant of its number. Cancelling an AirDrop send while it waited for
+            // someone to tap Accept therefore did nothing at all, for days, and the log
+            // line here said so every time without anyone reading it.
+            //
+            // Zero asks the daemon to cancel whatever is running, resolved there and then
+            // rather than against a number this side may not hold yet. pendingCancel
+            // covers the remaining sliver before the daemon has begun anything: the send
+            // callsite honours it the instant an id comes back.
+            pendingCancel = true;
+            Log.w(TAG, "cancel: no id yet — asking the daemon to cancel whatever is running");
+            try {
+                service.cancelTransfer(0);
+                progressLabel.setText("Cancelling…");
+            } catch (Exception e) {
+                Log.e(TAG, "cancelTransfer(0) failed", e);
+                progressLabel.setText("Cancel failed");
+            }
             return;
         }
         try {
+            pendingCancel = false;
             service.cancelTransfer(activeTransfer);
             progressLabel.setText("Cancelling…");
         } catch (Exception e) {
@@ -3367,6 +3388,14 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             progressLabel.setText("Cancel failed");
         }
     }
+
+    /**
+     * Someone tapped cancel before the daemon had issued an id.
+     *
+     * Cleared by whoever acts on it. Volatile because it is set on the UI thread and read
+     * by the Quick Share send thread.
+     */
+    private volatile boolean pendingCancel = false;
 
     /**
      * Say why a device cannot be picked yet, and offer the way out.
@@ -3411,6 +3440,9 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
 
     private void sendTo(TarishPeer peer) {
         Log.i(TAG, "sendTo " + peer.name + " with " + shared.size() + " file(s)");
+        // A cancel from a PREVIOUS attempt must not kill this one. The flag only ever means
+        // "the transfer being started right now was cancelled before it had an id".
+        pendingCancel = false;
         if (service == null) {
             Log.w(TAG, "no service");
             return;
@@ -3474,6 +3506,19 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
                 long id = QuickShareSender.send(svc, peer, toSend, toName,
                         started -> main.post(() -> {
                             activeTransfer = started;
+                            // Cancelled before the id existed. Apply it now -- the person
+                            // already asked, and the id arriving is no reason to start.
+                            if (pendingCancel) {
+                                pendingCancel = false;
+                                Log.i(TAG, "cancel was pending — cancelling " + started);
+                                try {
+                                    svc.cancelTransfer(started);
+                                    progressLabel.setText("Cancelling…");
+                                } catch (Exception e) {
+                                    Log.e(TAG, "deferred cancelTransfer failed", e);
+                                }
+                                return;
+                            }
                             // From here the transfer must survive this screen. It runs
                             // partly in THIS process -- we own the Bluetooth socket and pump
                             // bytes through it -- so a backgrounded app being killed takes
@@ -3501,6 +3546,19 @@ public final class MainActivity extends Activity implements BottomNav.Listener {
             activeTransfer = service.sendFiles(peer.id,
                     fds.toArray(new ParcelFileDescriptor[0]),
                     names.toArray(new String[0]));
+            // A cancel that arrived while this call was in flight. Apply it now rather
+            // than losing it: the person tapped cancel and is owed the outcome, not a
+            // transfer that starts anyway because their tap landed a moment too early.
+            if (pendingCancel) {
+                pendingCancel = false;
+                Log.i(TAG, "cancel was pending — cancelling " + activeTransfer + " immediately");
+                try {
+                    service.cancelTransfer(activeTransfer);
+                    progressLabel.setText("Cancelling…");
+                } catch (Exception e) {
+                    Log.e(TAG, "deferred cancelTransfer failed", e);
+                }
+            }
             // The daemon owns this one end to end, so it would survive us regardless --
             // but the person still deserves to see it progressing after they leave.
             TransferService.watch(getApplicationContext(), activeTransfer,
